@@ -31,6 +31,11 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data ,
                                               HWND hWnd, UINT uMsg , WPARAM wParam , LPARAM lParam )
 {
   std::ignore = user_data;
+  if( WM_W32_IMEADV_SUBCLASSIFY == uMsg ){
+    OutputDebugStringA( "recive w32_imeadv_lispy_communication_wnd_proc_impl WM_W32_IMEADV_SUBCLASSIFY\n");
+    return 0;
+  }
+  
   return ::DefWindowProc(hWnd, uMsg, wParam , lParam);
 }
 
@@ -165,6 +170,7 @@ BOOL w32_imeadv::subclassify_hwnd( HWND hWnd , DWORD_PTR dwRefData)
     hook_parameter.subclassify_hook =
       SetWindowsHookEx( WH_GETMESSAGE , getMsgProc , GetModuleHandle( NULL ) , target_input_thread_id );
   }
-  PostMessage( hWnd , WM_W32_IMEADV_SUBCLASSIFY , 0 , static_cast<LPARAM>( dwRefData ) );
+  PostMessage( hWnd , WM_W32_IMEADV_SUBCLASSIFY ,
+              reinterpret_cast<WPARAM>(communication_window_handle) , static_cast<LPARAM>( dwRefData ) );
   return FALSE;
 }
