@@ -1,6 +1,4 @@
-﻿// -*- compile-command: "g++ -std=c++11 -DWINVER=_WIN32_WINNT_WINXP -D_WIN32_WINNT=_WIN32_WINNT_WINXP --shared -o w32-imeadv.dll w32-imeadv.cpp -limm32 -lComctl32 -lUser32 "; -*- 
-
-/* 
+﻿/* 
    わかっていたけどすげー難しい。
  */
 
@@ -30,7 +28,7 @@ static inline void
 message( emacs_env_t* env , const std::string& text )
 {
   std::array<emacs_value , 1> args = { env->make_string( env, text.c_str() ,  text.size() ) };
-  env->funcall( env , env->intern( env, "message" ), std::extent<decltype( args )>::value , args.data() );
+  env->funcall( env , env->intern( env, u8"message" ), std::extent<decltype( args )>::value , args.data() );
   return;
 }
 
@@ -39,7 +37,7 @@ static inline void
 fset( emacs_env_t* env , emacs_value symbol, emacs_value function )
 {
   std::array<emacs_value , 2> args = {symbol,function};
-  env->funcall( env , env->intern( env , "fset" ) , std::extent<decltype(args)>::value  , args.data() );
+  env->funcall( env , env->intern( env , u8"fset" ) , std::extent<decltype(args)>::value  , args.data() );
   return;
 }
 
@@ -52,17 +50,15 @@ static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
 
 int emacs_module_init (struct emacs_runtime *ert) EMACS_NOEXCEPT
 {
-  if( !ert ){
-    return 0;
-  }
   switch( ert->size ){
   case sizeof( struct emacs_env_25 ):
     return emacs_module_init_impl( reinterpret_cast<emacs_env_25*>(ert->get_environment( ert )) );
     break;
   default:
-    if( sizeof( emacs_env_26 ) <= ert->size ){
-      return emacs_module_init_impl( ert->get_environment( ert ) );
-    }
+    if( ert->size > 0 )
+      if( sizeof( emacs_env_26 ) <= static_cast<size_t>(ert->size) ){
+          return emacs_module_init_impl( ert->get_environment( ert ) );
+      }
     break;
   }
   return 0;
