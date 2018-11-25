@@ -4,12 +4,12 @@
 #include <mutex>
 #include <tuple>
 #include <cassert>
+#include <string>
+#include <sstream>
 #include "w32-imeadv.h"
 
 // now implementation 
 namespace w32_imeadv {
-  BOOL initialize();
-  BOOL finalize();
 };
 
 extern "C"{
@@ -83,7 +83,7 @@ BOOL w32_imeadv::initialize()
   }
   if( windowAtom ){
     communication_window_handle =
-      CreateWindowExA(0,reinterpret_cast<LPCSTR>( windowAtom ) , "EmacsImm32CommunicationWindow",
+      CreateWindowExA(0,reinterpret_cast<LPCSTR>( windowAtom ) , "EmacsIMM32CommunicationWindow",
                       WS_OVERLAPPEDWINDOW,
                       CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
                       HWND_MESSAGE, NULL, hInstance, NULL);
@@ -108,6 +108,7 @@ BOOL w32_imeadv::finalize()
 
 BOOL w32_imeadv::subclassify_hwnd( HWND hWnd , DWORD_PTR dwRefData)
 {
+  OutputDebugStringA( "w32_imeadv::subclassify_hwnd\n" );
   struct {
     std::mutex mutex{};
     HHOOK subclassify_hook = 0;
@@ -131,7 +132,7 @@ BOOL w32_imeadv::subclassify_hwnd( HWND hWnd , DWORD_PTR dwRefData)
           MSG* msg = reinterpret_cast<MSG*>(lParam);
           if( msg )
             do{
-              if( msg->hwnd )
+              if(! msg->hwnd )
                 break;
               if( msg->message == WM_W32_IMEADV_SUBCLASSIFY )
                 {
@@ -158,6 +159,7 @@ BOOL w32_imeadv::subclassify_hwnd( HWND hWnd , DWORD_PTR dwRefData)
     };
 
   DWORD target_input_thread_id = GetWindowThreadProcessId ( hWnd , nullptr );
+
   {
     std::unique_lock<decltype( hook_parameter.mutex )> lock( hook_parameter.mutex );
     hook_parameter.subclassify_hook =

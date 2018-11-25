@@ -48,9 +48,47 @@ template<typename emacs_env_t>
 static emacs_value
 Fw32_imeadv_initialize( emacs_env *env , ptrdiff_t nargs , emacs_value args[] , void *data ) EMACS_NOEXCEPT
 {
-  message( env, std::string("w32-imadv"));
-  return env->intern(env,"t");
+  OutputDebugStringA("Fw32_imeadv_initialize\n");
+  if( w32_imeadv::initialize() ){
+    message( env, std::string("w32_imeadv-initialize success"));
+    return env->intern(env,"t");
+  }else{
+    message( env, std::string("w32-imeadv-initialize fail"));
+    return env->intern(env,"nil");
+  }
 };
+
+template<typename emacs_env_t>
+static emacs_value
+Fw32_imeadv_finalize( emacs_env* env , ptrdiff_t nargs , emacs_value args[] , void *data ) EMACS_NOEXCEPT
+{
+  OutputDebugStringA("Fw32_imeadv_finalize\n");
+  w32_imeadv::finalize();
+  message( env, std::string("w32-imeadv-finalize") );
+  return env->intern(env,"t");
+}
+
+template<typename emacs_env_t>
+static emacs_value
+Fw32_imeadv_inject_control( emacs_env* env , ptrdiff_t nargs , emacs_value args[] , void *data ) EMACS_NOEXCEPT
+{
+  OutputDebugStringA( "Fw32_imeadv_inject_control\n" );
+  if( nargs != 1 ){
+    OutputDebugStringA("Fw32_imeadv_inject_control invalid argusment\n" );
+    return env->intern( env, "nil" );
+  }
+  auto window_id = env->extract_integer( env,  args[0] );
+  HWND hWnd = reinterpret_cast<HWND>( window_id );
+  if( IsWindow( hWnd ) ){
+    if( w32_imeadv::subclassify_hwnd( hWnd , 0 ) )
+      return env->intern(env,"t");
+    else
+      return env->intern(env,"nil");
+  }else{
+    return env->intern(env,"nil");
+  }
+  
+}
 
 template<typename emacs_env_t>
 static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
@@ -59,6 +97,12 @@ static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
   fset( env,
         env->intern( env , "w32-imeadv-initialize" ), 
         (env->make_function( env, 0 ,1 , Fw32_imeadv_initialize<emacs_env_t> , "initialize w32-imeadv" , NULL )) );
+  fset( env,
+        env->intern( env , "w32-imeadv-finalize" ),
+        (env->make_function( env, 0 ,0 , Fw32_imeadv_finalize<emacs_env_t> , "finalize w32-imeadv" , NULL )));
+  fset( env,
+        env->intern( env , "w32-imeadv-inject-control" ),
+        (env->make_function( env ,1 ,1 , Fw32_imeadv_inject_control<emacs_env_t>, "inject window" , NULL )));
   
   std::array<emacs_value,1> provide_args =  { env->intern( env , "w32-imeadv" ) };
   env->funcall( env,

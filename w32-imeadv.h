@@ -23,6 +23,8 @@ extern "C"{
 
 #if defined( __cplusplus )
 namespace w32_imeadv {
+  BOOL initialize();
+  BOOL finalize();
   BOOL subclassify_hwnd( HWND hWnd , DWORD_PTR dwRefData);
 };
 #endif /* defined( __cplusplus ) */
