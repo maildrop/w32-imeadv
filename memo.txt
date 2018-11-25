@@ -1,0 +1,15 @@
+w32term.c の中に drain_message_queue があるのだけれども、
+
+teminal->read_socket_hook が w32_read_socket で呼び出しをしている
+
+
+ok 
+w32proc.c L 2310行目 の ところ、
+MsgWaitForMultipleObjects で 待ってるから、ウィンドウメッセージが届くと
+w32term.c の drain_message_queue で メッセージの配送がなされる。
+
+Lisp スレッドでウィンドウ作って、プロセス間通信できるぞ。
+やったね。
+
+サブクラス化をどこでする？
+メッセージフックでサブクラス化してやる？
