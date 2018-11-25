@@ -2,18 +2,107 @@
 #include <windows.h>
 #include <commctrl.h>
 #include <mutex>
+#include <tuple>
 #include <cassert>
 #include "w32-imeadv.h"
-
 
 // now implementation 
 namespace w32_imeadv {
   BOOL initialize();
+  BOOL finalize();
 };
+
+extern "C"{
+  struct UserData{
+  };
+};
+
+static LRESULT
+w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data ,
+                                              HWND hWnd, UINT uMsg , WPARAM wParam , LPARAM lParam );
+static LRESULT
+(CALLBACK w32_imeadv_lispy_communication_wnd_proc)(HWND hWnd, UINT uMsg , WPARAM wParam , LPARAM lParam );
+
+static ATOM windowAtom = 0;
+static HWND communication_window_handle = NULL;
+
+static LRESULT
+w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data ,
+                                              HWND hWnd, UINT uMsg , WPARAM wParam , LPARAM lParam )
+{
+  std::ignore = user_data;
+  return ::DefWindowProc(hWnd, uMsg, wParam , lParam);
+}
+
+static LRESULT
+(CALLBACK w32_imeadv_lispy_communication_wnd_proc)(HWND hWnd, UINT uMsg , WPARAM wParam , LPARAM lParam )
+{
+  if( WM_CREATE == uMsg ){
+    CREATESTRUCTA* createstruct = reinterpret_cast<CREATESTRUCTA*>( lParam );
+    if( createstruct ){
+      SetWindowLongPtr( hWnd , GWLP_USERDATA , reinterpret_cast<LONG_PTR>( createstruct->lpCreateParams ));
+    }
+  }
+
+  UserData* user_data = reinterpret_cast<UserData*>( GetWindowLongPtr( hWnd,  GWLP_USERDATA ) );
+
+#if !defined( NDEBUG )
+  if( WM_CREATE == uMsg ){
+    assert( reinterpret_cast<LONG_PTR>(user_data) ==
+            reinterpret_cast<LONG_PTR>(reinterpret_cast<CREATESTRUCTA*>(lParam)->lpCreateParams) );
+  }
+#endif /* !defined( NDEBUG ) */
+
+  if( WM_DESTROY == uMsg ){
+    SetWindowLongPtr( hWnd , GWLP_USERDATA , 0 );
+  }
+  return w32_imeadv_lispy_communication_wnd_proc_impl( user_data , hWnd , uMsg , wParam , lParam );
+}
 
 BOOL w32_imeadv::initialize()
 {
+  if( communication_window_handle ){
+    return TRUE;
+  }
+  HINSTANCE hInstance = GetModuleHandle( NULL );
+  if( !windowAtom ){
+    WNDCLASSEX wndClassEx = {};
+    wndClassEx.cbSize        = sizeof( WNDCLASSEX );
+    wndClassEx.style         = 0;
+    wndClassEx.lpfnWndProc   = w32_imeadv_lispy_communication_wnd_proc;
+    wndClassEx.cbClsExtra    = 0;
+    wndClassEx.cbWndExtra    = 0;
+    wndClassEx.hInstance     = hInstance;
+    wndClassEx.hIcon         = 0;
+    wndClassEx.hCursor       = LoadCursor(nullptr, IDC_ARROW);
+    wndClassEx.hbrBackground = (HBRUSH)(COLOR_WINDOW+1);
+    wndClassEx.lpszMenuName  = 0;
+    wndClassEx.lpszClassName = "EmacsIMM32CommunicationWindowClassA";
+    wndClassEx.hIconSm       = 0;
+    windowAtom = ::RegisterClassExA( &wndClassEx );
+  }
+  if( windowAtom ){
+    communication_window_handle =
+      CreateWindowExA(0,reinterpret_cast<LPCSTR>( windowAtom ) , "EmacsImm32CommunicationWindow",
+                      WS_OVERLAPPEDWINDOW,
+                      CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+                      HWND_MESSAGE, NULL, hInstance, NULL);
+  }
+  return (communication_window_handle) ? TRUE : FALSE;
+}
 
+BOOL w32_imeadv::finalize()
+{
+  if( communication_window_handle ){
+    if( ! DestroyWindow( communication_window_handle ) ){
+      
+    }
+    communication_window_handle = NULL;
+  }
+  
+  if( windowAtom ){
+    UnregisterClass( reinterpret_cast<LPCTSTR>(windowAtom) , GetModuleHandle( nullptr ));
+  }
   return TRUE;
 }
 
