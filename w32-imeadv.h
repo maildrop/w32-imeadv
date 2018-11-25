@@ -1,9 +1,13 @@
 ﻿#if !defined( W32_IMEADV_H_HEADER_GUARD_69b36924_1b02_4782_bf0b_b8c02d62065a )
 #define W32_IMEADV_H_HEADER_GUARD_69b36924_1b02_4782_bf0b_b8c02d62065a 1
 
-#define WM_W32_IMEADV_SUBCLASSIFY (WM_APP + 1028)
+#define WM_W32_IMEADV_START         (WM_APP + 1028)
+#define WM_W32_IMEADV_SUBCLASSIFY   (WM_W32_IMEADV_START + 0)
+#define WM_W32_IMEADV_UNSUBCLASSIFY (WM_W32_IMEADV_START + 1)
+#define WM_W32_IMEADV_END           (WM_W32_IMEADV_START + 2)
+
 #if defined(__cplusplus)
-static_assert( WM_W32_IMEADV_SUBCLASSIFY < 0xffff , "WM_W32_IMEADV_SUBCLASSIFY < 0xffff");
+static_assert( WM_W32_IMEADV_END < 0xffff , "WM_W32_IMEADV_END < 0xffff");
 #endif /* defined(__cplusplus) */
 
 /**
