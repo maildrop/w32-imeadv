@@ -6,10 +6,12 @@
 #include <cassert>
 #include <string>
 #include <sstream>
+#include <cstdint>
 
 #include "w32-imeadv.h"
 #include "emacs-module.h"
 #include "w32-imeadv-on-lispy-thread.h"
+#include "w32-imeadv-import-lisp-type.h"
 
 // now implementation 
 namespace w32_imeadv {
