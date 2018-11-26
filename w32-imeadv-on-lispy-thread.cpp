@@ -15,11 +15,11 @@
 namespace w32_imeadv {
 };
 
-extern "C"{
-  struct UserData{
-    emacs_env *env;
-  };
-};
+static struct UserData{
+  std::mutex mutex;
+  ATOM windowAtom;
+  HWND communication_window_handle;
+} user_data = {};
 
 static LRESULT
 w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data ,
@@ -27,19 +27,19 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data ,
 static LRESULT
 (CALLBACK w32_imeadv_lispy_communication_wnd_proc)(HWND hWnd, UINT uMsg , WPARAM wParam , LPARAM lParam );
 
-static ATOM windowAtom = 0;
-static HWND communication_window_handle = NULL;
-
 static LRESULT
 w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data ,
                                               HWND hWnd, UINT uMsg , WPARAM wParam , LPARAM lParam )
 {
-  std::ignore = user_data;
-  if( WM_W32_IMEADV_SUBCLASSIFY == uMsg ){
-    OutputDebugStringA( "recive w32_imeadv_lispy_communication_wnd_proc_impl WM_W32_IMEADV_SUBCLASSIFY\n");
+  OutputDebugStringA("w32_imeadv_lispy_communication_wnd_proc_impl");
+  if( ! user_data ){
+    OutputDebugStringA( "user_data is nullptr" );
     return 0;
   }
-  
+  if( WM_W32_IMEADV_SUBCLASSIFY == uMsg ){
+    OutputDebugStringA("w32_imeadv_lispy_communication_wnd_proc_impl message\n" );
+    return 0;
+  }
   return ::DefWindowProc(hWnd, uMsg, wParam , lParam);
 }
 
@@ -48,6 +48,7 @@ static LRESULT
 {
   if( WM_CREATE == uMsg ){
     CREATESTRUCTA* createstruct = reinterpret_cast<CREATESTRUCTA*>( lParam );
+    assert( createstruct->lpCreateParams );
     if( createstruct ){
       SetWindowLongPtr( hWnd , GWLP_USERDATA , reinterpret_cast<LONG_PTR>( createstruct->lpCreateParams ));
     }
@@ -68,13 +69,13 @@ static LRESULT
   return w32_imeadv_lispy_communication_wnd_proc_impl( user_data , hWnd , uMsg , wParam , lParam );
 }
 
-BOOL w32_imeadv::initialize(emacs_env * const env)
+BOOL w32_imeadv::initialize()
 {
-  if( communication_window_handle ){
+  if( user_data.communication_window_handle ){
     return TRUE;
   }
   HINSTANCE hInstance = GetModuleHandle( NULL );
-  if( !windowAtom ){
+  if( !user_data.windowAtom ){
     WNDCLASSEX wndClassEx = {};
     wndClassEx.cbSize        = sizeof( WNDCLASSEX );
     wndClassEx.style         = 0;
@@ -88,29 +89,31 @@ BOOL w32_imeadv::initialize(emacs_env * const env)
     wndClassEx.lpszMenuName  = 0;
     wndClassEx.lpszClassName = "EmacsIMM32CommunicationWindowClassA";
     wndClassEx.hIconSm       = 0;
-    windowAtom = ::RegisterClassExA( &wndClassEx );
+    user_data.windowAtom = ::RegisterClassExA( &wndClassEx );
   }
-  if( windowAtom ){
-    communication_window_handle =
-      CreateWindowExA(0,reinterpret_cast<LPCSTR>( windowAtom ) , "EmacsIMM32CommunicationWindow",
+  if( user_data.windowAtom ){
+    user_data.communication_window_handle =
+      CreateWindowExA(0,reinterpret_cast<LPCSTR>( user_data.windowAtom ) ,
+                      "EmacsIMM32CommunicationWindow",
                       WS_OVERLAPPEDWINDOW,
                       CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
-                      HWND_MESSAGE, NULL, hInstance, NULL);
+                      HWND_MESSAGE, NULL, hInstance, &user_data);
   }
-  return (communication_window_handle) ? TRUE : FALSE;
+  return (user_data.communication_window_handle) ? TRUE : FALSE;
 }
 
 BOOL w32_imeadv::finalize()
 {
-  if( communication_window_handle ){
-    if( ! DestroyWindow( communication_window_handle ) ){
+  if( user_data.communication_window_handle ){
+    if( ! DestroyWindow( user_data.communication_window_handle ) ){
       
     }
-    communication_window_handle = NULL;
+    user_data.communication_window_handle = NULL;
   }
   
-  if( windowAtom ){
-    UnregisterClass( reinterpret_cast<LPCTSTR>(windowAtom) , GetModuleHandle( nullptr ));
+  if( user_data.windowAtom ){
+    UnregisterClass( reinterpret_cast<LPCTSTR>(user_data.windowAtom) , GetModuleHandle( nullptr ));
+    user_data.windowAtom = 0;
   }
   return TRUE;
 }
@@ -175,6 +178,6 @@ BOOL w32_imeadv::subclassify_hwnd( HWND hWnd , DWORD_PTR dwRefData)
       SetWindowsHookEx( WH_GETMESSAGE , getMsgProc , GetModuleHandle( NULL ) , target_input_thread_id );
   }
   PostMessage( hWnd , WM_W32_IMEADV_SUBCLASSIFY ,
-              reinterpret_cast<WPARAM>(communication_window_handle) , static_cast<LPARAM>( dwRefData ) );
+              reinterpret_cast<WPARAM>(user_data.communication_window_handle) , static_cast<LPARAM>( dwRefData ) );
   return FALSE;
 }

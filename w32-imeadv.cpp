@@ -27,7 +27,6 @@ extern "C"{
   int plugin_is_GPL_compatible = 1;
 };
 
-static void *env_check_ptr = nullptr;
 
 template<typename emacs_env_t>
 static inline void
@@ -51,8 +50,7 @@ template<typename emacs_env_t>
 static emacs_value
 Fw32_imeadv_initialize( emacs_env *env , ptrdiff_t nargs , emacs_value args[] , void *data ) EMACS_NOEXCEPT
 {
-  assert( env_check_ptr == reinterpret_cast<void*>( env ) );
-  if( w32_imeadv::initialize(env) ){
+  if( w32_imeadv::initialize() ){
     return env->intern(env,"t");
   }else{
     return env->intern(env,"nil");
@@ -63,7 +61,6 @@ template<typename emacs_env_t>
 static emacs_value
 Fw32_imeadv_finalize( emacs_env* env , ptrdiff_t nargs , emacs_value args[] , void *data ) EMACS_NOEXCEPT
 {
-  assert( env_check_ptr == reinterpret_cast<void*>( env ) );
   w32_imeadv::finalize();
   message( env, std::string("w32-imeadv-finalize") );
   return env->intern(env,"t");
@@ -93,7 +90,6 @@ template<typename emacs_env_t>
 static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
 {
   assert( env );
-  env_check_ptr = reinterpret_cast<void*>( env );
   fset( env,
         env->intern( env , "w32-imeadv-initialize" ), 
         (env->make_function( env, 0 ,1 , Fw32_imeadv_initialize<emacs_env_t> , "initialize w32-imeadv" , NULL )) );
