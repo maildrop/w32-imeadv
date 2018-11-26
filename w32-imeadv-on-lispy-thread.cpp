@@ -6,7 +6,10 @@
 #include <cassert>
 #include <string>
 #include <sstream>
+
 #include "w32-imeadv.h"
+#include "emacs-module.h"
+#include "w32-imeadv-on-lispy-thread.h"
 
 // now implementation 
 namespace w32_imeadv {
@@ -14,6 +17,7 @@ namespace w32_imeadv {
 
 extern "C"{
   struct UserData{
+    emacs_env *env;
   };
 };
 
@@ -64,7 +68,7 @@ static LRESULT
   return w32_imeadv_lispy_communication_wnd_proc_impl( user_data , hWnd , uMsg , wParam , lParam );
 }
 
-BOOL w32_imeadv::initialize()
+BOOL w32_imeadv::initialize(emacs_env * const env)
 {
   if( communication_window_handle ){
     return TRUE;

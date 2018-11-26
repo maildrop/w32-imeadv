@@ -3,7 +3,7 @@
 
    emacs_env_25 のメンバーは、emacs_env* つまりemacs_env_26 を引数にとるので、
    本当にそれでいいのか？
- */
+*/
 
 #include <tchar.h>
 #include <windows.h>
@@ -16,8 +16,9 @@
 
 #include <cassert>
 
-#include "emacs-module.h"
 #include "w32-imeadv.h"
+#include "emacs-module.h"
+#include "w32-imeadv-on-lispy-thread.h"
 
 #define MODULE_NAME "w32-imeadv"
 
@@ -25,6 +26,8 @@
 extern "C"{
   int plugin_is_GPL_compatible = 1;
 };
+
+static void *env_check_ptr = nullptr;
 
 template<typename emacs_env_t>
 static inline void
@@ -48,12 +51,10 @@ template<typename emacs_env_t>
 static emacs_value
 Fw32_imeadv_initialize( emacs_env *env , ptrdiff_t nargs , emacs_value args[] , void *data ) EMACS_NOEXCEPT
 {
-  OutputDebugStringA("Fw32_imeadv_initialize\n");
-  if( w32_imeadv::initialize() ){
-    message( env, std::string("w32_imeadv-initialize success"));
+  assert( env_check_ptr == reinterpret_cast<void*>( env ) );
+  if( w32_imeadv::initialize(env) ){
     return env->intern(env,"t");
   }else{
-    message( env, std::string("w32-imeadv-initialize fail"));
     return env->intern(env,"nil");
   }
 };
@@ -62,7 +63,7 @@ template<typename emacs_env_t>
 static emacs_value
 Fw32_imeadv_finalize( emacs_env* env , ptrdiff_t nargs , emacs_value args[] , void *data ) EMACS_NOEXCEPT
 {
-  OutputDebugStringA("Fw32_imeadv_finalize\n");
+  assert( env_check_ptr == reinterpret_cast<void*>( env ) );
   w32_imeadv::finalize();
   message( env, std::string("w32-imeadv-finalize") );
   return env->intern(env,"t");
@@ -72,9 +73,7 @@ template<typename emacs_env_t>
 static emacs_value
 Fw32_imeadv_inject_control( emacs_env* env , ptrdiff_t nargs , emacs_value args[] , void *data ) EMACS_NOEXCEPT
 {
-  OutputDebugStringA( "Fw32_imeadv_inject_control\n" );
   if( nargs != 1 ){
-    OutputDebugStringA("Fw32_imeadv_inject_control invalid argusment\n" );
     return env->intern( env, "nil" );
   }
   auto window_id = env->extract_integer( env,  args[0] );
@@ -94,6 +93,7 @@ template<typename emacs_env_t>
 static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
 {
   assert( env );
+  env_check_ptr = reinterpret_cast<void*>( env );
   fset( env,
         env->intern( env , "w32-imeadv-initialize" ), 
         (env->make_function( env, 0 ,1 , Fw32_imeadv_initialize<emacs_env_t> , "initialize w32-imeadv" , NULL )) );
@@ -109,13 +109,11 @@ static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
                 env->intern( env , "provide" ) ,
                 provide_args.size() ,
                 provide_args.data() );
-  OutputDebugStringA( "emacs_module_init_impl\n" );
   return 0;
 }
 
 int emacs_module_init (struct emacs_runtime *ert) EMACS_NOEXCEPT
 {
-  OutputDebugStringA( "emacs_module_init\n" );
   if( 0 < ert->size && 
       sizeof( emacs_runtime ) <= static_cast<size_t>(ert->size) )
     {
@@ -128,8 +126,6 @@ int emacs_module_init (struct emacs_runtime *ert) EMACS_NOEXCEPT
       }
     }
   else
-    {
-      OutputDebugString( "emacs_runtime size is invalid\n");
-    }
+    OutputDebugString( "emacs_runtime size is invalid\n");
   return 0;
 }
