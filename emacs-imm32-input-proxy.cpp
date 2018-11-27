@@ -34,8 +34,10 @@ static LRESULT
   case WM_W32_IMEADV_END:
     return DestroyWindow( hWnd );
   case WM_W32_IMEADV_OPENSTATUS_OPEN :
+    OutputDebugStringA("emacs-imm32-input-proxy recieve WM_W32_IMEADV_OPENSTATUS_OPEN\n");
     return notify_output( '1' );
   case WM_W32_IMEADV_OPENSTATUS_CLOSE :
+    OutputDebugStringA("emacs-imm32-input-proxy recieve WM_W32_IMEADV_OPENSTATUS_CLOSE\n");
     return notify_output( '0' );
   case WM_W32_IMEADV_REQUEST_RECONVERSION_STRING:
     return notify_output( 'R' );

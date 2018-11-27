@@ -30,7 +30,7 @@ namespace w32_imeadv{
 };
 
 static LRESULT
-w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data ,
+w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
                                               HWND hWnd, UINT uMsg , WPARAM wParam , LPARAM lParam );
 static LRESULT
 (CALLBACK w32_imeadv_lispy_communication_wnd_proc)(HWND hWnd, UINT uMsg , WPARAM wParam , LPARAM lParam );
@@ -49,11 +49,46 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
   // implementation note . この時点では、まだ、ロックがかかっていないので、user_dataの中身に触る前に、ロックをかけること
   if( WM_W32_IMEADV_NOTIFY_SIGNAL_HWND == uMsg ){
       OutputDebugStringA("w32_imeadv_lispy_communication_wnd_proc_impl WM_W32_IMEADV_NOTIFY_SIGNAL_HWND message\n");
-      std::unique_lock<decltype(user_data.mutex)> lock{ user_data.mutex };
-      user_data.signal_window = (HWND)(wParam);
+      if( user_data_ptr ){
+        std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
+        user_data_ptr->signal_window = (HWND)(wParam);
+      }
       return 0;
   }
-  
+  switch( uMsg ){
+  case WM_W32_IMEADV_NULL :
+    {
+      if( user_data_ptr ){
+        std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
+        if( user_data_ptr->signal_window ){
+          PostMessage( user_data_ptr->signal_window , WM_W32_IMEADV_NULL , 0 ,0 );
+        }
+      }
+      return 0;
+    }
+  case WM_W32_IMEADV_OPENSTATUS_OPEN:
+    {
+      if( user_data_ptr ){
+        std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
+        if( user_data_ptr->signal_window ){
+          PostMessage( user_data_ptr->signal_window , WM_W32_IMEADV_OPENSTATUS_OPEN , 0 ,0 );
+        }
+      }
+      return 0;
+    }
+  case WM_W32_IMEADV_OPENSTATUS_CLOSE:
+    {
+      if( user_data_ptr ){
+        std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
+        if( user_data_ptr->signal_window ){
+          PostMessage( user_data_ptr->signal_window , WM_W32_IMEADV_OPENSTATUS_CLOSE , 0 ,0 );
+        }
+      }
+      return 0;
+    }
+  default:
+    break;
+  }
   return ::DefWindowProc(hWnd, uMsg, wParam , lParam);
 }
 
