@@ -84,17 +84,80 @@ w32_imm_wm_ime_composition( HWND hWnd , WPARAM wParam , LPARAM lParam )
     }
   return DefWindowProc( hWnd , WM_IME_COMPOSITION , wParam , lParam );
 }
+
+
 static LRESULT
 w32_imm_wm_ime_endcomposition( HWND hWnd , WPARAM wParam , LPARAM lParam )
 {
   return DefSubclassProc( hWnd , WM_IME_ENDCOMPOSITION , wParam , lParam );
 }
 
+static LRESULT
+w32_imm_wm_ime_notify( HWND hWnd, WPARAM wParam ,LPARAM  lParam )
+{
+  OutputDebugStringA( "w32_imm_wm_ime_notify( HWND hWnd, WPARAM wParam ,LPARAM  lParam )\n");
+
+  switch( wParam ){
+  case IMN_SETOPENSTATUS:
+    {
+      HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ) );
+      if( communication_window_handle )
+        {
+          HIMC hImc = ImmGetContext( hWnd );
+          if( hImc )
+            {
+              if( ImmGetOpenStatus( hImc ) )
+                PostMessageA( communication_window_handle , WM_W32_IMEADV_OPENSTATUS_OPEN , 0 , 0 );
+              else
+                PostMessageA( communication_window_handle , WM_W32_IMEADV_OPENSTATUS_CLOSE , 0 , 0 );
+              ImmReleaseContext( hWnd , hImc );
+            }
+        }
+    }
+    break;
+  default:
+    break;
+  }
+
+  return DefSubclassProc( hWnd, WM_IME_NOTIFY , wParam , lParam );
+}
+
+static LRESULT
+w32_imeadv_null( HWND hWnd , WPARAM wParam , LPARAM lParam )
+{
+  return 1;
+}
+
+
+static LRESULT
+w32_imeadv_openstatus_open( HWND hWnd , WPARAM wParam , LPARAM lParam )
+{
+  HIMC hImc = ImmGetContext( hWnd );
+  if( hImc ){
+    ImmSetOpenStatus( hImc , TRUE );
+    ImmReleaseContext( hWnd, hImc );
+    return 1;
+  }
+  return 0;
+}
+
+static LRESULT
+w32_imeadv_openstatus_close( HWND hWnd , WPARAM wParam , LPARAM lParam )
+{
+  HIMC hImc = ImmGetContext( hWnd );
+  if( hImc ){
+    ImmSetOpenStatus( hImc, FALSE );
+    ImmReleaseContext( hWnd, hImc );
+    return 1;
+  }
+  return 0;
+}
+
 LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM lParam ,
                                   UINT_PTR uIdSubclass, DWORD_PTR dwRefData ){
   UNREFERENCED_PARAMETER( dwRefData );
   if( WM_DESTROY == uMsg )
-    SendMessage( hWnd, WM_W32_IMEADV_UNSUBCLASSIFY , 0 , 0 );
+    SendMessage( hWnd, WM_W32_IMEADV_UNSUBCLASSIFY , 0 , 0 ); // 自分自身に送る
 
   if( WM_KEYDOWN == uMsg )
     {
@@ -107,7 +170,7 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
           }
           const MSG msg = { hWnd , uMsg , wParam , lParam , 0 , {0} };
           TranslateMessage(&msg);
-        return ::DefWindowProc( hWnd, uMsg , wParam , lParam );
+          return ::DefWindowProc( hWnd, uMsg , wParam , lParam );
         }
         break;
       default:
@@ -116,12 +179,28 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
     }
   else if ( WM_IME_COMPOSITION == uMsg )
     return w32_imm_wm_ime_composition( hWnd , wParam , lParam );
-  else if( WM_IME_STARTCOMPOSITION == uMsg )
+
+  else if ( WM_IME_STARTCOMPOSITION == uMsg )
     return w32_imm_wm_ime_startcomposition( hWnd ,wParam , lParam);
-  else if( WM_IME_ENDCOMPOSITION == uMsg )
+
+  else if ( WM_IME_ENDCOMPOSITION == uMsg )
     return w32_imm_wm_ime_endcomposition( hWnd, wParam , lParam );
+
+  else if ( WM_IME_NOTIFY == uMsg )
+    return w32_imm_wm_ime_notify( hWnd, wParam , lParam );
+
+  else if ( WM_W32_IMEADV_NULL == uMsg )
+    return w32_imeadv_null( hWnd , wParam , lParam );
+
+  else if ( WM_W32_IMEADV_OPENSTATUS_OPEN == uMsg)
+    return w32_imeadv_openstatus_open( hWnd , wParam , lParam );
+
+  else if ( WM_W32_IMEADV_OPENSTATUS_CLOSE == uMsg )
+    return w32_imeadv_openstatus_close( hWnd , wParam , lParam );
+
   else if ( WM_W32_IMEADV_SUBCLASSIFY == uMsg )
     {
+
       HIMC hImc = ImmGetContext( hWnd );
       if( hImc )
         {
@@ -135,8 +214,11 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
             OutputDebugStringA( "w32-imeadv subclass_proc first ImmSetStateus failed\n");
           ImmReleaseContext( hWnd , hImc );
         }
+      
       HWND communication_window_handle = (HWND)(wParam);
+      
       SetProp( hWnd , "W32_IMM32ADV_COMWIN" , (communication_window_handle ) );
+      
       PostMessageA( communication_window_handle , WM_W32_IMEADV_SUBCLASSIFY , (WPARAM)( hWnd ) , 0);
     }
   else if( WM_W32_IMEADV_UNSUBCLASSIFY == uMsg )

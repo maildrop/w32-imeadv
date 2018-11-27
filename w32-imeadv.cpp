@@ -126,6 +126,38 @@ Fw32_imeadv__defualt_message_input_handler ( emacs_env* env ,
 }
 
 template<typename emacs_env_t>
+static emacs_value
+Fw32_imeadv_set_openstatus_open( emacs_env* env ,
+                                 ptrdiff_t nargs , emacs_value args[] ,
+                                 void *data ) EMACS_NOEXCEPT
+{
+  if( nargs == 0 ){
+    HWND hWnd = reinterpret_cast<HWND>(env->extract_integer( env,  args[0] ));
+    if( IsWindow( hWnd ) ){
+      w32_imeadv::set_openstatus( hWnd , TRUE );
+      return env->intern( env, "t" );
+    }
+  }
+  return env->intern( env, "nil" );
+}
+
+template<typename emacs_env_t>
+static emacs_value
+Fw32_imeadv_set_openstatus_close( emacs_env* env,
+                                  ptrdiff_t nargs , emacs_value args[] ,
+                                  void *data ) EMACS_NOEXCEPT
+{
+  if( nargs == 0 ){
+    HWND hWnd = reinterpret_cast<HWND>(env->extract_integer( env,  args[0] ));
+    if( IsWindow( hWnd ) ){
+      w32_imeadv::set_openstatus( hWnd , FALSE );
+      return env->intern( env, "t" );
+    }
+  }
+  return env->intern( env, "nil" );
+}
+
+template<typename emacs_env_t>
 static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
 {
   assert( env );
@@ -146,6 +178,14 @@ static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
         env->intern( env , "w32-imeadv--defualt-message-input-handler"),
         (env->make_function( env , 2, 2 , Fw32_imeadv__defualt_message_input_handler<emacs_env_t>,
                              "signal input handler" , NULL )));
+
+  fset( env,
+        env->intern( env , "w32-imeadv-set-openstatus-open" ),
+        (env->make_function( env, 0, 0 , Fw32_imeadv_set_openstatus_open<emacs_env_t> , "open IME" , NULL )));
+  fset( env,
+        env->intern( env , "w32-imeadv-set-openstatus-close" ),
+        (env->make_function( env, 0, 0, Fw32_imeadv_set_openstatus_close<emacs_env_t> ,"close IME" , NULL )));
+
   
   std::array<emacs_value,1> provide_args =  { env->intern( env , "w32-imeadv" ) };
   env->funcall( env,

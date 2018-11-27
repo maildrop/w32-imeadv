@@ -36,29 +36,24 @@ static LRESULT
 (CALLBACK w32_imeadv_lispy_communication_wnd_proc)(HWND hWnd, UINT uMsg , WPARAM wParam , LPARAM lParam );
 
 static LRESULT
-w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data ,
+w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
                                               HWND hWnd, UINT uMsg , WPARAM wParam , LPARAM lParam )
 {
   OutputDebugStringA("w32_imeadv_lispy_communication_wnd_proc_impl");
-  if( ! user_data ){
-    OutputDebugStringA( "user_data is nullptr" );
-  }
 
-  // implementation note . この時点では、まだ、ロックがかかっていないので、user_dataの中身に触る前に、ロックをかけること
-  if( WM_W32_IMEADV_NULL == uMsg ){
-    std::unique_lock<decltype(user_data->mutex)> lock{ user_data->mutex };
-    OutputDebugStringA("w32_imeadv_lispy_communication_wnd_proc_impl WM_W32_IMEADV_NULL message\n" );
-    PostMessageA( user_data->signal_window , WM_W32_IMEADV_NULL , 0 , 0 );
-    return 0;
-  }else if( WM_W32_IMEADV_SUBCLASSIFY == uMsg ){
+  if( WM_W32_IMEADV_SUBCLASSIFY == uMsg ){
     OutputDebugStringA("w32_imeadv_lispy_communication_wnd_proc_impl WM_W32_IMEADV_SUBCLASSIFY message\n" );
     return 0;
-  }else if( WM_W32_IMEADV_NOTIFY_SIGNAL_HWND == uMsg ){
-    OutputDebugStringA("w32_imeadv_lispy_communication_wnd_proc_impl WM_W32_IMEADV_NOTIFY_SIGNAL_HWND message\n");
-    std::unique_lock<decltype(user_data->mutex)> lock{ user_data->mutex };
-    user_data->signal_window = (HWND)(wParam);
-    return 0;
   }
+  
+  // implementation note . この時点では、まだ、ロックがかかっていないので、user_dataの中身に触る前に、ロックをかけること
+  if( WM_W32_IMEADV_NOTIFY_SIGNAL_HWND == uMsg ){
+      OutputDebugStringA("w32_imeadv_lispy_communication_wnd_proc_impl WM_W32_IMEADV_NOTIFY_SIGNAL_HWND message\n");
+      std::unique_lock<decltype(user_data.mutex)> lock{ user_data.mutex };
+      user_data.signal_window = (HWND)(wParam);
+      return 0;
+  }
+  
   return ::DefWindowProc(hWnd, uMsg, wParam , lParam);
 }
 
@@ -140,7 +135,6 @@ BOOL w32_imeadv::finalize()
   return TRUE;
 }
 
-
 /* get communication Window Handle without lock */
 HWND& w32_imeadv::implements::get_communication_HWND_impl()
 {
@@ -216,8 +210,20 @@ BOOL w32_imeadv::subclassify_hwnd( HWND hWnd , DWORD_PTR dwRefData)
     hook_parameter.subclassify_hook =
       SetWindowsHookEx( WH_GETMESSAGE , getMsgProc , GetModuleHandle( NULL ) , target_input_thread_id );
   }
+  
   PostMessage( hWnd , WM_W32_IMEADV_SUBCLASSIFY ,
                reinterpret_cast<WPARAM>(HWND( implements::get_communication_HWND_impl() )),
                static_cast<LPARAM>( dwRefData ) );
   return FALSE;
+}
+
+BOOL 
+w32_imeadv::set_openstatus( HWND hWnd , BOOL status )
+{
+  if( status ){
+    PostMessage( hWnd , WM_W32_IMEADV_OPENSTATUS_OPEN , 0 , 0 );
+  }else{
+    PostMessage( hWnd , WM_W32_IMEADV_OPENSTATUS_CLOSE , 0 , 0 );
+  }
+  return TRUE;
 }
