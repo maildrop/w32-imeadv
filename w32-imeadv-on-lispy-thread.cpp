@@ -21,7 +21,14 @@ static struct UserData{
   std::mutex mutex;
   ATOM windowAtom;
   HWND communication_window_handle;
+  HWND signal_window;
 } user_data = {};
+
+namespace w32_imeadv{
+  namespace implements{
+    HWND& get_communication_HWND_impl();
+  };
+};
 
 static LRESULT
 w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data ,
@@ -36,10 +43,17 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data ,
   OutputDebugStringA("w32_imeadv_lispy_communication_wnd_proc_impl");
   if( ! user_data ){
     OutputDebugStringA( "user_data is nullptr" );
-    return 0;
   }
   if( WM_W32_IMEADV_SUBCLASSIFY == uMsg ){
-    OutputDebugStringA("w32_imeadv_lispy_communication_wnd_proc_impl message\n" );
+    OutputDebugStringA("w32_imeadv_lispy_communication_wnd_proc_impl WM_W32_IMEADV_SUBCLASSIFY message\n" );
+    return 0;
+  }else if( WM_W32_IMEADV_NOTIFY_SIGNAL_HWND == uMsg ){
+    OutputDebugStringA("w32_imeadv_lispy_communication_wnd_proc_impl WM_W32_IMEADV_NOTIFY_SIGNAL_HWND message\n");
+    std::unique_lock<decltype(user_data->mutex)> lock{ user_data->mutex };
+    user_data->signal_window = (HWND)(wParam);
+    // for Debug
+    PostMessage( user_data->signal_window , WM_W32_IMEADV_NULL , 0 , 0 );
+
     return 0;
   }
   return ::DefWindowProc(hWnd, uMsg, wParam , lParam);
@@ -71,8 +85,10 @@ static LRESULT
   return w32_imeadv_lispy_communication_wnd_proc_impl( user_data , hWnd , uMsg , wParam , lParam );
 }
 
+
 BOOL w32_imeadv::initialize()
 {
+  std::unique_lock<decltype( user_data.mutex )> lock( user_data.mutex );
   if( user_data.communication_window_handle ){
     return TRUE;
   }
@@ -106,6 +122,7 @@ BOOL w32_imeadv::initialize()
 
 BOOL w32_imeadv::finalize()
 {
+  std::unique_lock<decltype( user_data.mutex )> lock( user_data.mutex );
   if( user_data.communication_window_handle ){
     if( ! DestroyWindow( user_data.communication_window_handle ) ){
       
@@ -118,6 +135,23 @@ BOOL w32_imeadv::finalize()
     user_data.windowAtom = 0;
   }
   return TRUE;
+}
+
+
+/* get communication Window Handle without lock */
+HWND& w32_imeadv::implements::get_communication_HWND_impl()
+{
+  OutputDebugStringA( user_data.communication_window_handle ?
+                      "user_data.communication_window_handle have":
+                      "user_data.communication_window_handle nil" );
+  return user_data.communication_window_handle;
+}
+
+/* get communication Window Handle with lock  */
+HWND w32_imeadv::get_communication_HWND()
+{
+  std::unique_lock<decltype( user_data.mutex )> lock( user_data.mutex );
+  return w32_imeadv::implements::get_communication_HWND_impl();
 }
 
 BOOL w32_imeadv::subclassify_hwnd( HWND hWnd , DWORD_PTR dwRefData)
@@ -180,6 +214,7 @@ BOOL w32_imeadv::subclassify_hwnd( HWND hWnd , DWORD_PTR dwRefData)
       SetWindowsHookEx( WH_GETMESSAGE , getMsgProc , GetModuleHandle( NULL ) , target_input_thread_id );
   }
   PostMessage( hWnd , WM_W32_IMEADV_SUBCLASSIFY ,
-              reinterpret_cast<WPARAM>(user_data.communication_window_handle) , static_cast<LPARAM>( dwRefData ) );
+               reinterpret_cast<WPARAM>(HWND( implements::get_communication_HWND_impl() )),
+               static_cast<LPARAM>( dwRefData ) );
   return FALSE;
 }

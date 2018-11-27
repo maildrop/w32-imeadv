@@ -68,6 +68,20 @@ Fw32_imeadv_finalize( emacs_env* env , ptrdiff_t nargs , emacs_value args[] , vo
 
 template<typename emacs_env_t>
 static emacs_value
+Fw32_imeadv_get_communication_hwnd( emacs_env* env, ptrdiff_t nargs , emacs_value args[] , void *data ) EMACS_NOEXCEPT
+{
+  emacs_value return_value;
+  HWND hwnd = w32_imeadv::get_communication_HWND();
+  if( hwnd ){
+    return_value = env->make_integer( env , reinterpret_cast<intmax_t>(hwnd) );
+  }else{
+    return_value = env->intern(env, "nil" );
+  }
+  return return_value;
+}
+
+template<typename emacs_env_t>
+static emacs_value
 Fw32_imeadv_inject_control( emacs_env* env , ptrdiff_t nargs , emacs_value args[] , void *data ) EMACS_NOEXCEPT
 {
   if( nargs != 1 ){
@@ -83,7 +97,6 @@ Fw32_imeadv_inject_control( emacs_env* env , ptrdiff_t nargs , emacs_value args[
   }else{
     return env->intern(env,"nil");
   }
-  
 }
 
 template<typename emacs_env_t>
@@ -99,6 +112,9 @@ static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
   fset( env,
         env->intern( env , "w32-imeadv-inject-control" ),
         (env->make_function( env ,1 ,1 , Fw32_imeadv_inject_control<emacs_env_t>, "inject window" , NULL )));
+  fset( env,
+        env->intern( env , "w32-imeadv-get-communication-hwnd" ),
+        (env->make_function( env , 0 , 0 , Fw32_imeadv_get_communication_hwnd<emacs_env_t>, "get comminication window handle ", NULL )));
   
   std::array<emacs_value,1> provide_args =  { env->intern( env , "w32-imeadv" ) };
   env->funcall( env,

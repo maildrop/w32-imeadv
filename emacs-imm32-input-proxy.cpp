@@ -28,6 +28,9 @@ static LRESULT
     PostQuitMessage(0);
   }
   switch( uMsg ){
+  case WM_W32_IMEADV_NULL:
+    OutputDebugStringA("emacs-imm32-input-proxy recieve WM_W32_IMEADV_NULL\n");
+    return notify_output( '*' );
   case WM_W32_IMEADV_END:
     return DestroyWindow( hWnd );
   case WM_W32_IMEADV_OPENSTATUS_OPEN :
@@ -46,13 +49,26 @@ static LRESULT
 
 int main(int argc,char* argv[])
 {
+  HWND controlWindow = 0;
   if( 1 < argc ){
-    
     HWND hWnd = reinterpret_cast<HWND>(static_cast<intptr_t>( atoi( argv[1] )));
     if( hWnd ){
-      std::stringstream out{};
-      out << reinterpret_cast<intptr_t>(hWnd) << std::endl;
-      OutputDebugStringA( out.str().c_str() );
+      if( IsWindow( hWnd ) ){
+        controlWindow = hWnd;
+      }else{
+        controlWindow = 0;
+      }
+#if !defined( NDEBUG )
+      {
+        std::stringstream out{};
+        if( IsWindow( hWnd ) ){
+          out << reinterpret_cast<intptr_t>(hWnd) << " IsWindow" << std::endl;
+        }else{
+          out << reinterpret_cast<intptr_t>(hWnd) << " IsWindow fail" << std::endl;
+        }
+        OutputDebugStringA( out.str().c_str() );
+      }
+#endif /* !defined( NDEBUG ) */
     }
   }
   
@@ -83,11 +99,19 @@ int main(int argc,char* argv[])
                       CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
                       HWND_MESSAGE, NULL, hInstance, nullptr);    
     if( hWnd ){
-      PostMessageA( hWnd , WM_W32_IMEADV_OPENSTATUS_OPEN , 0 , 0 );
-      PostMessageA( hWnd , WM_W32_IMEADV_OPENSTATUS_CLOSE , 0 , 0 );
-      PostMessageA( hWnd , WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING , 0 , 0 );
-      PostMessageA( hWnd , WM_W32_IMEADV_REQUEST_RECONVERSION_STRING , 0 , 0 );
-      PostMessageA( hWnd , WM_W32_IMEADV_END , 0 ,0  );
+      if( controlWindow ){
+        if( IsWindow( controlWindow ) ){
+          OutputDebugString( "emacs-ime32-input-proxy send WM_W32_IMEADV_NOTIFY_SIGNAL_HWND\n" );
+          PostMessageA( controlWindow , WM_W32_IMEADV_NOTIFY_SIGNAL_HWND , (WPARAM)(hWnd), 0 );
+        }
+      }else{
+        PostMessageA( hWnd , WM_W32_IMEADV_OPENSTATUS_OPEN , 0 , 0 );
+        PostMessageA( hWnd , WM_W32_IMEADV_OPENSTATUS_CLOSE , 0 , 0 );
+        PostMessageA( hWnd , WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING , 0 , 0 );
+        PostMessageA( hWnd , WM_W32_IMEADV_REQUEST_RECONVERSION_STRING , 0 , 0 );
+        PostMessageA( hWnd , WM_W32_IMEADV_END , 0 ,0  );
+      }
+      
       for(;;){
         MSG msg = {0};
         switch( GetMessageA( &msg , NULL , 0 , 0 ) ){

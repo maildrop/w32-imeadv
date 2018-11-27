@@ -11,6 +11,7 @@ namespace w32_imeadv {
   BOOL initialize();
   BOOL finalize();
   BOOL subclassify_hwnd( HWND hWnd , DWORD_PTR dwRefData);
+  HWND get_communication_HWND();
 };
 #endif /* defined( __cplusplus ) */
 
