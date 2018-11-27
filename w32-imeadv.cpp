@@ -116,6 +116,13 @@ Fw32_imeadv__defualt_message_input_handler ( emacs_env* env ,
     if( 0 < size ){
       std::unique_ptr< char[] > buffer{ new char[size] };
       env->copy_string_contents( env, args[1], buffer.get() , &size ) ;
+      for( ptrdiff_t i = 0; i < size ; ++i ){
+        if( i == size-1 ){
+          if( buffer[i] != '\0' ){
+            OutputDebugStringA( __FILE__ " Fw32_imeadv__defualt_message_input_handler : not null terminate\n" );
+          }
+        }
+      }
       out << buffer.get() ;
     }
     message( env , out.str() );
