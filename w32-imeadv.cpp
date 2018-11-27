@@ -104,28 +104,43 @@ Fw32_imeadv_inject_control( emacs_env* env , ptrdiff_t nargs , emacs_value args[
 
 template<typename emacs_env_t>
 static emacs_value
-Fw32_imeadv__defualt_message_input_handler ( emacs_env* env ,
+Fw32_imeadv__default_message_input_handler ( emacs_env* env ,
                                              ptrdiff_t nargs , emacs_value args[] ,
                                              void *data ) EMACS_NOEXCEPT
 {
   std::stringstream out;
   if( nargs == 2 ){
-    out << "hello world ";
     ptrdiff_t size{0};
     env->copy_string_contents( env, args[1], NULL , &size );
     if( 0 < size ){
       std::unique_ptr< char[] > buffer{ new char[size] };
       env->copy_string_contents( env, args[1], buffer.get() , &size ) ;
       for( ptrdiff_t i = 0; i < size ; ++i ){
-        if( i == size-1 ){
-          if( buffer[i] != '\0' ){
-            OutputDebugStringA( __FILE__ " Fw32_imeadv__defualt_message_input_handler : not null terminate\n" );
-          }
+        switch( buffer[i] ){
+        case '\0':
+          goto end_of_loop;
+        case '*': 
+          break;
+        case '0':
+          env->funcall( env, env->intern( env , "w32-imeadv--notify-openstatus-close" ) ,
+                        0 , nullptr );
+          break;
+        case '1':
+          env->funcall( env, env->intern( env , "w32-imeadv--notify-openstatus-open" ) ,
+                        0 , nullptr );
+          break;
+        case 'R': // Reconversion
+          break;
+        case 'D': // Document Feed
+          break;
+        default:
+          break;
         }
       }
+    end_of_loop:
+      ;
       out << buffer.get() ;
     }
-    message( env , out.str() );
     return env->intern( env , "t" );
   }else{
     return env->intern( env , "nil" );
@@ -154,13 +169,40 @@ Fw32_imeadv_set_openstatus_close( emacs_env* env,
                                   ptrdiff_t nargs , emacs_value args[] ,
                                   void *data ) EMACS_NOEXCEPT
 {
-  if( nargs == 1 ){
+  if( 1 == nargs ){
     HWND hWnd = reinterpret_cast<HWND>(env->extract_integer( env,  args[0] ));
     if( IsWindow( hWnd ) ){
       w32_imeadv::set_openstatus( hWnd , FALSE );
       return env->intern( env, "t" );
     }
   }
+  return env->intern( env, "nil" );
+}
+
+template<typename emacs_env_t>
+static emacs_value
+Fw32_imeadv__notify_openstatus_open( emacs_env* env,
+                                    ptrdiff_t nargs , emacs_value[],
+                                    void *data ) EMACS_NOEXCEPT
+{
+  if( 0 == nargs )
+    {
+      message( env , std::string( "Open" ));
+      return env->intern( env, "t" );
+    }
+  return env->intern( env , "nil" );
+}
+template<typename emacs_env_t>
+static emacs_value
+Fw32_imeadv__notify_openstatus_close( emacs_env* env,
+                                      ptrdiff_t nargs , emacs_value[],
+                                      void *)
+{
+  if( 0 == nargs )
+    {
+      message( env, std::string( "Close" ));
+      return env->intern( env , "t" );
+    }
   return env->intern( env, "nil" );
 }
 
@@ -183,7 +225,7 @@ static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
 
   fset( env,
         env->intern( env , "w32-imeadv--defualt-message-input-handler"),
-        (env->make_function( env , 2, 2 , Fw32_imeadv__defualt_message_input_handler<emacs_env_t>,
+        (env->make_function( env , 2, 2 , Fw32_imeadv__default_message_input_handler<emacs_env_t>,
                              "signal input handler" , NULL )));
 
   fset( env,
@@ -192,7 +234,12 @@ static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
   fset( env,
         env->intern( env , "w32-imeadv-set-openstatus-close" ),
         (env->make_function( env, 1, 1, Fw32_imeadv_set_openstatus_close<emacs_env_t> ,"close IME require window-id" , NULL )));
-
+  fset( env,
+        env->intern( env , "w32-imeadv--notify-openstatus-open"),
+        (env->make_function( env, 0 ,0 ,Fw32_imeadv__notify_openstatus_open<emacs_env_t>,"",NULL )));
+  fset( env,
+        env->intern( env , "w32-imeadv--notify-openstatus-close" ),
+        (env->make_function( env, 0, 0 ,Fw32_imeadv__notify_openstatus_close<emacs_env_t>,"",NULL )));
   
   std::array<emacs_value,1> provide_args =  { env->intern( env , "w32-imeadv" ) };
   env->funcall( env,
