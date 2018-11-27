@@ -132,6 +132,7 @@ w32_imeadv_null( HWND hWnd , WPARAM wParam , LPARAM lParam )
 static LRESULT
 w32_imeadv_openstatus_open( HWND hWnd , WPARAM wParam , LPARAM lParam )
 {
+  OutputDebugStringA("w32_imeadv_openstatus_open\n");
   HIMC hImc = ImmGetContext( hWnd );
   if( hImc ){
     ImmSetOpenStatus( hImc , TRUE );
@@ -144,6 +145,7 @@ w32_imeadv_openstatus_open( HWND hWnd , WPARAM wParam , LPARAM lParam )
 static LRESULT
 w32_imeadv_openstatus_close( HWND hWnd , WPARAM wParam , LPARAM lParam )
 {
+  OutputDebugStringA("w32_imeadv_openstatus_close\n");
   HIMC hImc = ImmGetContext( hWnd );
   if( hImc ){
     ImmSetOpenStatus( hImc, FALSE );

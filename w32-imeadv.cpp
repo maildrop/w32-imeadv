@@ -131,7 +131,7 @@ Fw32_imeadv_set_openstatus_open( emacs_env* env ,
                                  ptrdiff_t nargs , emacs_value args[] ,
                                  void *data ) EMACS_NOEXCEPT
 {
-  if( nargs == 0 ){
+  if( nargs == 1 ){
     HWND hWnd = reinterpret_cast<HWND>(env->extract_integer( env,  args[0] ));
     if( IsWindow( hWnd ) ){
       w32_imeadv::set_openstatus( hWnd , TRUE );
@@ -147,7 +147,7 @@ Fw32_imeadv_set_openstatus_close( emacs_env* env,
                                   ptrdiff_t nargs , emacs_value args[] ,
                                   void *data ) EMACS_NOEXCEPT
 {
-  if( nargs == 0 ){
+  if( nargs == 1 ){
     HWND hWnd = reinterpret_cast<HWND>(env->extract_integer( env,  args[0] ));
     if( IsWindow( hWnd ) ){
       w32_imeadv::set_openstatus( hWnd , FALSE );
@@ -181,10 +181,10 @@ static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
 
   fset( env,
         env->intern( env , "w32-imeadv-set-openstatus-open" ),
-        (env->make_function( env, 0, 0 , Fw32_imeadv_set_openstatus_open<emacs_env_t> , "open IME" , NULL )));
+        (env->make_function( env, 1, 1 , Fw32_imeadv_set_openstatus_open<emacs_env_t> , "open IME require window-id" , NULL )));
   fset( env,
         env->intern( env , "w32-imeadv-set-openstatus-close" ),
-        (env->make_function( env, 0, 0, Fw32_imeadv_set_openstatus_close<emacs_env_t> ,"close IME" , NULL )));
+        (env->make_function( env, 1, 1, Fw32_imeadv_set_openstatus_close<emacs_env_t> ,"close IME require window-id" , NULL )));
 
   
   std::array<emacs_value,1> provide_args =  { env->intern( env , "w32-imeadv" ) };
