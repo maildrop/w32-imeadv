@@ -8,8 +8,11 @@
 #include <tchar.h>
 #include <windows.h>
 
+#include <iostream>
+#include <sstream>
 #include <type_traits>
 #include <string>
+#include <memory>
 #include <array>
 #include <utility>
 #include <algorithm>
@@ -100,6 +103,29 @@ Fw32_imeadv_inject_control( emacs_env* env , ptrdiff_t nargs , emacs_value args[
 }
 
 template<typename emacs_env_t>
+static emacs_value
+Fw32_imeadv__defualt_message_input_handler ( emacs_env* env ,
+                                             ptrdiff_t nargs , emacs_value args[] ,
+                                             void *data ) EMACS_NOEXCEPT
+{
+  std::stringstream out;
+  if( nargs == 2 ){
+    out << "hello world ";
+    ptrdiff_t size{0};
+    env->copy_string_contents( env, args[1], NULL , &size );
+    if( 0 < size ){
+      std::unique_ptr< char[] > buffer{ new char[size] };
+      env->copy_string_contents( env, args[1], buffer.get() , &size ) ;
+      out << buffer.get() ;
+    }
+    message( env , out.str() );
+    return env->intern( env , "t" );
+  }else{
+    return env->intern( env , "nil" );
+  }
+}
+
+template<typename emacs_env_t>
 static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
 {
   assert( env );
@@ -115,6 +141,11 @@ static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
   fset( env,
         env->intern( env , "w32-imeadv-get-communication-hwnd" ),
         (env->make_function( env , 0 , 0 , Fw32_imeadv_get_communication_hwnd<emacs_env_t>, "get comminication window handle ", NULL )));
+
+  fset( env,
+        env->intern( env , "w32-imeadv--defualt-message-input-handler"),
+        (env->make_function( env , 2, 2 , Fw32_imeadv__defualt_message_input_handler<emacs_env_t>,
+                             "signal input handler" , NULL )));
   
   std::array<emacs_value,1> provide_args =  { env->intern( env , "w32-imeadv" ) };
   env->funcall( env,

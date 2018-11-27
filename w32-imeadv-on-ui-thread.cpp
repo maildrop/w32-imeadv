@@ -101,6 +101,10 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
       switch( wParam ){
       case VK_PROCESSKEY:
         { 
+          HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ) );
+          if( communication_window_handle ){
+            PostMessageA( communication_window_handle , WM_W32_IMEADV_NULL , 0 ,0 );
+          }
           const MSG msg = { hWnd , uMsg , wParam , lParam , 0 , {0} };
           TranslateMessage(&msg);
         return ::DefWindowProc( hWnd, uMsg , wParam , lParam );

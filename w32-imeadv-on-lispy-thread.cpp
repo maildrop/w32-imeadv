@@ -43,16 +43,20 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data ,
   if( ! user_data ){
     OutputDebugStringA( "user_data is nullptr" );
   }
-  if( WM_W32_IMEADV_SUBCLASSIFY == uMsg ){
+
+  // implementation note . この時点では、まだ、ロックがかかっていないので、user_dataの中身に触る前に、ロックをかけること
+  if( WM_W32_IMEADV_NULL == uMsg ){
+    std::unique_lock<decltype(user_data->mutex)> lock{ user_data->mutex };
+    OutputDebugStringA("w32_imeadv_lispy_communication_wnd_proc_impl WM_W32_IMEADV_NULL message\n" );
+    PostMessageA( user_data->signal_window , WM_W32_IMEADV_NULL , 0 , 0 );
+    return 0;
+  }else if( WM_W32_IMEADV_SUBCLASSIFY == uMsg ){
     OutputDebugStringA("w32_imeadv_lispy_communication_wnd_proc_impl WM_W32_IMEADV_SUBCLASSIFY message\n" );
     return 0;
   }else if( WM_W32_IMEADV_NOTIFY_SIGNAL_HWND == uMsg ){
     OutputDebugStringA("w32_imeadv_lispy_communication_wnd_proc_impl WM_W32_IMEADV_NOTIFY_SIGNAL_HWND message\n");
     std::unique_lock<decltype(user_data->mutex)> lock{ user_data->mutex };
     user_data->signal_window = (HWND)(wParam);
-    // for Debug
-    PostMessage( user_data->signal_window , WM_W32_IMEADV_NULL , 0 , 0 );
-
     return 0;
   }
   return ::DefWindowProc(hWnd, uMsg, wParam , lParam);
