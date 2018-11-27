@@ -1,6 +1,8 @@
 ﻿#include <tchar.h>
 #include <windows.h>
 #include <commctrl.h>
+#include <sstream>
+#include <string>
 #include <imm.h>
 #include <cstdint>
 #include <cassert>
@@ -22,6 +24,7 @@ w32_imeadv_openstatus_open( HWND hWnd , WPARAM wParam , LPARAM lParam );
 static LRESULT
 w32_imeadv_openstatus_close( HWND hWnd , WPARAM wParam , LPARAM lParam );
 
+static int ignore_wm_ime_start_composition = 0;
 
 static LRESULT
 w32_imm_wm_ime_startcomposition( HWND hWnd , WPARAM wParam , LPARAM lParam )
@@ -29,7 +32,26 @@ w32_imm_wm_ime_startcomposition( HWND hWnd , WPARAM wParam , LPARAM lParam )
   // deny break in WM_IME_STARTCOMPOSITION , call DefWindowProc 
   // Emacs のバージョンで切り分けるという作業をしないとダメですよ
   ::DefSubclassProc( hWnd , WM_IME_STARTCOMPOSITION , wParam , lParam );
-  return DefWindowProc( hWnd, WM_IME_STARTCOMPOSITION , wParam , lParam );
+
+  // ここでの問題点は、GNU版の Emacs は Lispスレッドが、何度も WM_IME_STARTCOMPOSITION を連打するという問題がある。
+  // これはバグだと思うが、オリジナルを修正しないようにするためには、ここでフィルタする
+  if( ignore_wm_ime_start_composition ){
+    return 1;
+  }else{
+    OutputDebugStringA("w32_imm_wm_ime_startcomposition effective\n");
+  // TODO -- ここでフォントの要求をするべきだよね
+    {
+      HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
+      if( communication_window_handle ){
+        if( SendMessage( communication_window_handle , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT , 0 ,lParam ) ){
+          // Wait Conversion Message
+          OutputDebugStringA( "IMR_COMPOSITIONFONT waiting message\n");
+        }
+      }
+    }
+    ignore_wm_ime_start_composition = 1;
+    return DefWindowProc( hWnd, WM_IME_STARTCOMPOSITION , wParam , lParam );
+  }
 }
 
 static LRESULT
@@ -98,6 +120,7 @@ w32_imm_wm_ime_composition( HWND hWnd , WPARAM wParam , LPARAM lParam )
 static LRESULT
 w32_imm_wm_ime_endcomposition( HWND hWnd , WPARAM wParam , LPARAM lParam )
 {
+  ignore_wm_ime_start_composition = 0;
   return DefSubclassProc( hWnd , WM_IME_ENDCOMPOSITION , wParam , lParam );
 }
 
@@ -136,17 +159,34 @@ static LRESULT
 w32_imm_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
 {
   switch( wParam ){
+  case IMR_COMPOSITIONWINDOW:
+    {
+      OutputDebugStringA( "w32_imm_wm_ime_request -> IMR_COMPOSITIONWINDOW \n" );
+    }
+  case IMR_COMPOSITIONFONT:
+    {
+      HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
+      if( communication_window_handle ){
+        if( SendMessage( communication_window_handle , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT , 0 ,lParam ) ){
+          // Wait Conversion Message
+          OutputDebugStringA( "IMR_COMPOSITIONFONT waiting message\n");
+          return 0;
+        }
+      }
+      break;
+    }
   case IMR_RECONVERTSTRING:
     {
       HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
       if( communication_window_handle ){
         if( SendMessage( communication_window_handle , WM_W32_IMEADV_REQUEST_RECONVERSION_STRING , 0 ,lParam ) ){
           // Wait Conversion Message
+          OutputDebugStringA( "IMR_RECONVERTSTRING waiting message\n");
           return 0;
         }
       }
+      break;
     }
-    break;
   case IMR_DOCUMENTFEED:
     {
       HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
@@ -159,9 +199,18 @@ w32_imm_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
           return 0;
         }
       }
+      break;
     }
-    
+  case IMR_QUERYCHARPOSITION:
+    {
+      return ::DefWindowProc( hWnd , WM_IME_REQUEST , wParam , lParam );
+    }
   default:
+    {
+      std::stringstream out{};
+      out << "WM_IME_REQUEST " << wParam << std::endl;
+      OutputDebugStringA( out.str().c_str() );
+    }
     break;
   }
   return DefSubclassProc( hWnd, WM_IME_REQUEST , wParam , lParam );

@@ -50,6 +50,37 @@ fset( emacs_env_t* env , emacs_value symbol, emacs_value function )
 }
 
 template<typename emacs_env_t>
+static inline emacs_value 
+my_funcall( emacs_env_t *env , const char* proc_name )
+{
+  emacs_value proc_symbol = env->intern( env, proc_name );
+  std::array< emacs_value  , 1 > fboundup_args = {proc_symbol};
+  emacs_value fboundup_proc_value =
+    env->funcall( env, env->intern(env, u8"fboundp" ),
+                  fboundup_args.size() , fboundup_args.data() );
+  if( env->is_not_nil( env, fboundup_proc_value ) ){
+    return env->funcall( env, proc_symbol , 0 ,nullptr );
+  }
+  return env->intern( env , u8"nil" );
+}
+
+template<typename emacs_env_t, typename ... Args>
+static inline emacs_value 
+my_funcall( emacs_env_t *env , const char* proc_name , Args ... args )
+{
+  emacs_value proc_symbol = env->intern( env, proc_name );
+  std::array< emacs_value  , 1 > fboundup_args = {proc_symbol};
+  emacs_value fboundup_proc_value =
+    env->funcall( env, env->intern(env, u8"fboundp" ),
+                  fboundup_args.size() , fboundup_args.data() );
+  if( env->is_not_nil( env, fboundup_proc_value ) ){
+    std::array< emacs_value , sizeof...( args ) > proc_args = { args... };
+    return env->funcall( env, proc_symbol , proc_args.size() , proc_args.data() );
+  }
+  return env->intern( env , u8"nil" );
+}
+
+template<typename emacs_env_t>
 static emacs_value
 Fw32_imeadv_initialize( emacs_env *env , ptrdiff_t nargs , emacs_value args[] , void *data ) EMACS_NOEXCEPT
 {
@@ -122,18 +153,20 @@ Fw32_imeadv__default_message_input_handler ( emacs_env* env ,
         case '*': 
           break;
         case '0':
-          env->funcall( env, env->intern( env , "w32-imeadv--notify-openstatus-close" ) ,
-                        0 , nullptr );
+          my_funcall( env, "w32-imeadv--notify-openstatus-close" );
           break;
         case '1':
-          env->funcall( env, env->intern( env , "w32-imeadv--notify-openstatus-open" ) ,
-                        0 , nullptr );
+          my_funcall( env , "w32-imeadv--notify-openstatus-open" );
+          break;
+        case 'F': // Request Composition Font
+          OutputDebugStringA( "dispatch font setting\n"); // TODO いまここ
+          my_funcall( env , "w32-imeadv--notify-composition-font" );
           break;
         case 'R': // Reconversion
-          OutputDebugStringA(" dispatch reconversion string");
+          OutputDebugStringA(" dispatch reconversion string\n");
           break;
         case 'D': // Document Feed
-          OutputDebugStringA(" dispatch documentfeed string");
+          OutputDebugStringA(" dispatch documentfeed string\n");
           break;
         default:
           break;

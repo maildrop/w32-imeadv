@@ -86,12 +86,22 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
       }
       return 0;
     }
+  case WM_W32_IMEADV_REQUEST_COMPOSITION_FONT:
+    {
+      if( user_data_ptr ){
+        std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
+        if( user_data_ptr->signal_window ){
+          return SendMessage( user_data_ptr->signal_window , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT , 0, 0 );
+        }
+      }
+      return 0;
+    }
   case WM_W32_IMEADV_REQUEST_RECONVERSION_STRING:
     {
       if( user_data_ptr ){
         std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
         if( user_data_ptr->signal_window ){
-          SendMessage( user_data_ptr->signal_window , WM_W32_IMEADV_REQUEST_RECONVERSION_STRING, 0 ,0 );
+          return SendMessage( user_data_ptr->signal_window , WM_W32_IMEADV_REQUEST_RECONVERSION_STRING, 0 ,0 );
         }
       }
       return 0;
@@ -101,7 +111,7 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
       if( user_data_ptr ){
         std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
         if( user_data_ptr->signal_window ){
-          SendMessage( user_data_ptr->signal_window , WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING, 0 ,0 );
+          return SendMessage( user_data_ptr->signal_window , WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING, 0 ,0 );
         }
       }
       return 0;

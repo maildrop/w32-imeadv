@@ -45,6 +45,9 @@ static LRESULT
   case WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING:
     OutputDebugStringA("emacs-imm32-input-proxy recieve WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING\n");
     return notify_output( 'D' );
+  case WM_W32_IMEADV_REQUEST_COMPOSITION_FONT:
+    OutputDebugStringA("emacs-imm32-input-proxy recieve WM_W32_IMEADV_REQUEST_COMPOSITION_FONT\n");
+    return notify_output( 'F' );
   default:
     break;
   }
