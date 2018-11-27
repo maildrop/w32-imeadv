@@ -11,5 +11,33 @@ w32term.c の drain_message_queue で メッセージの配送がなされる。
 Lisp スレッドでウィンドウ作って、プロセス間通信できるぞ。
 やったね。
 
-サブクラス化をどこでする？
-メッセージフックでサブクラス化してやる？
+（つまるところemacs の Windows 版のLispスレッドは、WindowsAPI の世界で言うところのGUIスレッドであり、
+GUIスレッドとしての機能を考慮して作られている。）
+
+サブクラス化
+SetWindowSubClass でウィンドウのサブクラス化をするのだけれども、この関数はスレッドを超えることが出来ないので、
+一旦 SetWindowHookEx で、UI スレッドに侵入して、そのフック関数の中で、SetWindowSubclass を実行してやる。
+これは上手くいく
+
+UI スレッドからのイベントの取得
+UI スレッドからのメッセージは、Lisp スレッドの持つウィンドウが一旦受け取るのだけれども、
+ここから Lisp コードを実行することが難しいので、さらに emacs-imm32-input-proxy.exe の持つウィンドウへ転送してやる。
+そこで emacs-imm32-input-proxy.exe が標準出力へ出力。 この標準出力は、emacs 側が待っているので、フィルタ関数を
+経由して、w32-imeadv--defualt-message-input-handlerをコールする。
+いわゆる self-pipe-trick の利用である。
+
+（ 他にもキーボードイベントへの侵入や、ウィンドウプロシージャからLisp_Object を作って実行などを考えたが、
+Emacs本体側のコード変更に弱かったり、パッチ当てるのと変わらない苦労が考えられたので、結局この方法に落ち着いた）
+ Emacs module に汎用的なイベントハンドラの仕組みを要求したい。一番近いのは、キーボードのスペシャルイベントであるが、
+ これはハードコーディングされていて、増えたり減ったりはしない。ダメ。
+ なお、mac用のスペシャルイベントのコードが、漏れている。使われないスペシャルイベント。
+
+ emacs_envの実態は、スタック上にとられているので、呼び出し終わったら消えるよ。保存しておいてもだめだよ。
+
+ なお、w32のファイル変更の通知などは、スレッドメッセージで届くので、ダイアログを開いている間は消失する。
+これは信頼性がないのでリライトする必要があるだろうなと思った。
+
+
+;; IME の開け閉めコード
+(w32-imeadv-set-openstatus-open (string-to-number (frame-parameter (selected-frame)'window-id)) )
+(w32-imeadv-set-openstatus-close (string-to-number (frame-parameter (selected-frame)'window-id)) )
