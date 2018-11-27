@@ -133,6 +133,41 @@ w32_imm_wm_ime_notify( HWND hWnd, WPARAM wParam ,LPARAM  lParam )
 }
 
 static LRESULT
+w32_imm_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
+{
+  switch( wParam ){
+  case IMR_RECONVERTSTRING:
+    {
+      HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
+      if( communication_window_handle ){
+        if( SendMessage( communication_window_handle , WM_W32_IMEADV_REQUEST_RECONVERSION_STRING , 0 ,lParam ) ){
+          // Wait Conversion Message
+          return 0;
+        }
+      }
+    }
+    break;
+  case IMR_DOCUMENTFEED:
+    {
+      HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
+      if( communication_window_handle ){
+          OutputDebugStringA( "IMR_DOCUMENTFEED sending proxy message\n");
+        
+        if( SendMessage( communication_window_handle , WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING , 0 ,lParam ) ){
+          // Wait Conversion Message
+          OutputDebugStringA( "IMR_DOCUMENTFEED waiting message\n");
+          return 0;
+        }
+      }
+    }
+    
+  default:
+    break;
+  }
+  return DefSubclassProc( hWnd, WM_IME_REQUEST , wParam , lParam );
+}
+
+static LRESULT
 w32_imeadv_null( HWND hWnd , WPARAM wParam , LPARAM lParam )
 {
   return 1;
@@ -176,10 +211,6 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
       switch( wParam ){
       case VK_PROCESSKEY:
         { 
-          HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ) );
-          if( communication_window_handle ){
-            PostMessageA( communication_window_handle , WM_W32_IMEADV_NULL , 0 ,0 );
-          }
           const MSG msg = { hWnd , uMsg , wParam , lParam , 0 , {0} };
           TranslateMessage(&msg);
           return ::DefWindowProc( hWnd, uMsg , wParam , lParam );
@@ -198,6 +229,8 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
     return w32_imm_wm_ime_endcomposition( hWnd, wParam , lParam );
   case WM_IME_NOTIFY :
     return w32_imm_wm_ime_notify( hWnd, wParam , lParam );
+  case WM_IME_REQUEST:
+    return w32_imm_wm_ime_request( hWnd, wParam , lParam );
     
     /* ********************************** */
     /* Private Window Message             */

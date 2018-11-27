@@ -40,8 +40,10 @@ static LRESULT
     OutputDebugStringA("emacs-imm32-input-proxy recieve WM_W32_IMEADV_OPENSTATUS_CLOSE\n");
     return notify_output( '0' );
   case WM_W32_IMEADV_REQUEST_RECONVERSION_STRING:
+    OutputDebugStringA("emacs-imm32-input-proxy recieve WM_W32_IMEADV_REQUEST_RECONVERSION_STRING\n");
     return notify_output( 'R' );
   case WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING:
+    OutputDebugStringA("emacs-imm32-input-proxy recieve WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING\n");
     return notify_output( 'D' );
   default:
     break;

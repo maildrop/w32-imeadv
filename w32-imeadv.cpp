@@ -130,8 +130,10 @@ Fw32_imeadv__default_message_input_handler ( emacs_env* env ,
                         0 , nullptr );
           break;
         case 'R': // Reconversion
+          OutputDebugStringA(" dispatch reconversion string");
           break;
         case 'D': // Document Feed
+          OutputDebugStringA(" dispatch documentfeed string");
           break;
         default:
           break;
