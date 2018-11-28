@@ -161,6 +161,9 @@ Fw32_imeadv__default_message_input_handler ( emacs_env* env ,
         case 'F': // Request Composition Font
           OutputDebugStringA( "dispatch font setting\n"); // TODO いまここ
           my_funcall( env , "w32-imeadv--notify-composition-font" );
+          SendMessage( w32_imeadv::get_communication_HWND() ,
+                       WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT ,
+                       0 , 0 );
           break;
         case 'R': // Reconversion
           OutputDebugStringA(" dispatch reconversion string\n");

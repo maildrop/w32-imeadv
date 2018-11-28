@@ -1,9 +1,14 @@
 ﻿#include <tchar.h>
 #include <windows.h>
+#include <imm.h>
 #include <commctrl.h>
+
 #include <sstream>
 #include <string>
-#include <imm.h>
+#include <new>
+#include <memory>
+#include <tuple>
+
 #include <cstdint>
 #include <cassert>
 
@@ -24,7 +29,88 @@ w32_imeadv_openstatus_open( HWND hWnd , WPARAM wParam , LPARAM lParam );
 static LRESULT
 w32_imeadv_openstatus_close( HWND hWnd , WPARAM wParam , LPARAM lParam );
 
-static int ignore_wm_ime_start_composition = 0;
+template<UINT WaitMessage , DWORD dwTimeOutMillSecond = 5000 /* 5 sec timout (for safity) */> static inline BOOL 
+my_wait_message( HWND hWnd )
+{
+  assert( hWnd );
+
+  if(! hWnd )
+    return FALSE;
+  if(! IsWindow( hWnd ) )
+    return FALSE;
+
+  assert( GetCurrentThreadId() == GetWindowThreadProcessId( hWnd, nullptr ) );
+  
+  SUBCLASSPROC const subclass_proc
+    = [](HWND hWnd, UINT uMsg , WPARAM wParam , LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) -> LRESULT {
+        std::ignore = uIdSubclass;
+        if( WaitMessage == uMsg ){
+          DWORD *ptr = reinterpret_cast<DWORD*>( dwRefData );
+          *ptr = 0;
+        }
+        return ::DefSubclassProc( hWnd, uMsg , wParam , lParam );
+      };
+  UINT_PTR const uIdSubclass = reinterpret_cast<UINT_PTR const >( subclass_proc );
+
+  /* not throw std::bad_alloc in this case  */
+  std::unique_ptr< DWORD > waiting_data{(new ( std::nothrow ) DWORD{1})}; 
+  if( ! static_cast<bool>( waiting_data ) ){
+    return FALSE;
+  }
+  
+  if( ::SetWindowSubclass( hWnd , subclass_proc , uIdSubclass , reinterpret_cast<DWORD_PTR>(waiting_data.get()) ) ){
+    struct raii{
+      HWND const hWnd;
+      SUBCLASSPROC const subclass_proc;
+      UINT_PTR const uIdSubclass;
+      std::unique_ptr< DWORD >& waiting_data;
+      ~raii(){
+        if( !::RemoveWindowSubclass( this->hWnd, this->subclass_proc , this->uIdSubclass ) ){
+          // 不本意ながら、 waiting_data を detach して、状況の保全を図る
+          OutputDebugString( __FILE__ " RemoveWindowSubClass failed. " );
+          this->waiting_data.release();
+        }
+      }
+    } remove_window_subclass_raii = { hWnd , subclass_proc , uIdSubclass , waiting_data};
+    
+    while( *waiting_data ){
+      typedef std::integral_constant<DWORD , 0> nObjects;
+      DWORD const wait_result =
+        MsgWaitForMultipleObjects( nObjects::value  , nullptr ,FALSE,
+                                   dwTimeOutMillSecond , QS_SENDMESSAGE | QS_PAINT );
+      switch( wait_result ){
+      case (WAIT_OBJECT_0 + nObjects::value):
+        {
+          MSG msg = {};
+          // Process only messages sent with SendMessage
+          while( PeekMessage( &msg , NULL , WM_NULL ,WM_NULL , PM_REMOVE | PM_QS_SENDMESSAGE | PM_QS_PAINT ) ){
+            TranslateMessage( &msg );
+            DispatchMessage( &msg );
+          }
+          break;
+        }
+      case WAIT_TIMEOUT:
+        {
+          OutputDebugStringA( "my_wait_message TIME_OUT!" );
+          return FALSE;
+        }
+        goto end_of_loop;
+      default:
+        if( (WAIT_ABANDONED_0 <= wait_result) && (wait_result < (WAIT_ABANDONED_0 + nObjects::value)) ){
+          // nObjects::value = 0
+          ::DebugBreak();
+        }
+        goto end_of_loop;
+      }
+    }
+  end_of_loop:
+    return TRUE;
+  }
+  return FALSE;
+}
+
+/* see w32_imm_wm_ime_startcomposition and w32_imm_wm_ime_endcomposition */
+static int ignore_wm_ime_start_composition = 0; 
 
 static LRESULT
 w32_imm_wm_ime_startcomposition( HWND hWnd , WPARAM wParam , LPARAM lParam )
@@ -43,10 +129,16 @@ w32_imm_wm_ime_startcomposition( HWND hWnd , WPARAM wParam , LPARAM lParam )
     {
       HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
       if( communication_window_handle ){
-        if( SendMessage( communication_window_handle , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT , 0 ,lParam ) ){
+        if( SendMessage( communication_window_handle , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT ,
+                         reinterpret_cast<WPARAM>(hWnd) ,lParam ) ){
           // Wait Conversion Message
           OutputDebugStringA( "IMR_COMPOSITIONFONT waiting message\n");
+          my_wait_message<WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT>(hWnd);
+        }else{
+          OutputDebugStringA( "SendMessage WM_W32_IMEADV_REQUEST_COMPOSITION_FONT failed" );
         }
+      }else{
+        OutputDebugStringA( " communication_window_handle is 0 " );
       }
     }
     ignore_wm_ime_start_composition = 1;
@@ -170,6 +262,7 @@ w32_imm_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
         if( SendMessage( communication_window_handle , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT , 0 ,lParam ) ){
           // Wait Conversion Message
           OutputDebugStringA( "IMR_COMPOSITIONFONT waiting message\n");
+          my_wait_message<WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT>(hWnd);
           return 0;
         }
       }
@@ -290,7 +383,9 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
     return w32_imeadv_openstatus_open( hWnd , wParam , lParam );
   case WM_W32_IMEADV_OPENSTATUS_CLOSE:
     return w32_imeadv_openstatus_close( hWnd , wParam , lParam );
-    
+  case WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT:
+    OutputDebugString( "WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT recieve and consume\n" );
+    return 1;
   default: 
     break;
   }

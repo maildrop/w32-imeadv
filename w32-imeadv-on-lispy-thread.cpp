@@ -4,6 +4,7 @@
 #include <mutex>
 #include <tuple>
 #include <cassert>
+#include <queue>
 #include <string>
 #include <sstream>
 #include <cstdint>
@@ -21,6 +22,7 @@ static struct UserData{
   ATOM windowAtom;
   HWND communication_window_handle;
   HWND signal_window;
+  std::queue<HWND> request_queue;
 } user_data = {};
 
 namespace w32_imeadv{
@@ -86,13 +88,47 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
       }
       return 0;
     }
+  case WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT:
+    {
+      OutputDebugStringA("WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT\n");
+      if( user_data_ptr ){
+        std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
+        assert( 1 == user_data_ptr->request_queue.size() );
+        if( !user_data_ptr->request_queue.empty() ){
+          HWND response_wnd = user_data_ptr->request_queue.front();
+          user_data_ptr->request_queue.pop();
+          if( response_wnd ){
+            OutputDebugStringA( "SendMessage to response_wnd WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT == enter ==\n");
+            auto b = SendMessage( response_wnd , WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT , wParam , lParam );
+            OutputDebugStringA( "SendMessage to response_wnd WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT == leave ==\n");
+            return b;
+          }else{
+            OutputDebugStringA( "response_wnd is null\n");
+          }
+        }
+      }
+      return 0;
+    }
   case WM_W32_IMEADV_REQUEST_COMPOSITION_FONT:
     {
       if( user_data_ptr ){
         std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
+        assert( user_data_ptr->request_queue.empty() );
         if( user_data_ptr->signal_window ){
-          return SendMessage( user_data_ptr->signal_window , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT , 0, 0 );
+          auto send_message_result =
+            SendMessage( user_data_ptr->signal_window , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT , wParam, lParam );
+          if( send_message_result ){
+            user_data_ptr->request_queue.push ( reinterpret_cast<HWND>( wParam ) );
+          }
+          OutputDebugStringA( send_message_result ? 
+                              __FILE__ " WM_W32_IMEADV_REQUEST_COMPOSITION_FONT OK" :
+                              __FILE__ " WM_W32_IMEADV_REQUEST_COMPOSITION_FONT FAIL");
+          return send_message_result;
+        }else{
+          OutputDebugStringA(" user_data_ptr->signal_window is null\n");
         }
+      }else{
+        OutputDebugStringA(" user_data_ptr is nullptr\n" );
       }
       return 0;
     }
