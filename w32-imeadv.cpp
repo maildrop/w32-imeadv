@@ -9,6 +9,7 @@
 #include <windows.h>
 
 #include <iostream>
+#include <ostream>
 #include <sstream>
 #include <string>
 
@@ -32,8 +33,8 @@ extern "C"{
   int plugin_is_GPL_compatible = 1;
 };
 
-#if 0
-static BOOL filesystem_u8_to_wcs(const std::string &u8str, std::wstring &dst)
+static BOOL
+filesystem_u8_to_wcs(const std::string &u8str, std::wstring &dst)
 {
   int wclen = MultiByteToWideChar( CP_UTF8 , MB_ERR_INVALID_CHARS ,
                                    u8str.data() , static_cast<int>(u8str.size()) , nullptr ,0 );
@@ -56,10 +57,9 @@ static BOOL filesystem_u8_to_wcs(const std::string &u8str, std::wstring &dst)
   }
   return FALSE;
 }
-#endif
 
-
-static BOOL filesystem_wcs_to_u8(const std::wstring &str, std::string &dst )
+static BOOL
+filesystem_wcs_to_u8(const std::wstring &str, std::string &dst )
 {
   int mblen = WideCharToMultiByte( CP_UTF8 , 0 ,
                                    str.data() , static_cast<int>( str.size() ) , nullptr , 0 ,
@@ -82,9 +82,9 @@ static BOOL filesystem_wcs_to_u8(const std::wstring &str, std::string &dst )
 
 template<typename emacs_env_t>
 static inline void
-message( emacs_env_t* env , const std::string& text )
+message_utf8( emacs_env_t* env , const std::string& utf8_text ) 
 {
-  std::array<emacs_value , 1> args = { env->make_string( env, text.c_str() ,  text.size() ) };
+  std::array<emacs_value , 1> args = { env->make_string( env, utf8_text.c_str() ,  utf8_text.size() ) };
   env->funcall( env , env->intern( env, u8"message" ), args.size(),  args.data() );
   return;
 }
@@ -96,6 +96,26 @@ fset( emacs_env_t* env , emacs_value symbol, emacs_value function )
   std::array<emacs_value , 2> args = {symbol,function};
   env->funcall( env , env->intern( env , u8"fset" ) , args.size(),  args.data() );
   return;
+}
+
+template<typename emacs_env_t>
+std::wstring 
+my_copy_string_contents( emacs_env_t env, emacs_value value )
+{
+  ptrdiff_t size{0};
+  env->copy_string_contents( env, value , NULL , &size );
+  if( 0 < size ){
+    std::unique_ptr< char[] > buffer{ new (std::nothrow) char[size]{} };
+    if( static_cast<bool>( buffer ) ){
+      env->copy_string_contents( env , value , buffer.get() , &size );
+      std::string const utf8_str( buffer.get() , size );
+      std::wstring result{};
+      if( filesystem_u8_to_wcs( utf8_str , result ) ){
+        return result;
+      }
+    }
+  }
+  return std::wstring{};
 }
 
 template<typename emacs_env_t>
@@ -129,6 +149,26 @@ my_funcall( emacs_env_t *env , const char* proc_name , Args ... args )
   return env->intern( env , u8"nil" );
 }
 
+template<typename eamcs_env_t>
+static emacs_value
+Fw32_imeadv__get_module_filename( emacs_env *env ,
+                                  ptrdiff_t nargs , emacs_value[] ,
+                                  void *) EMACS_NOEXCEPT
+{
+  HMODULE module_handle = GetModuleHandle(MODULE_NAME);
+  if( module_handle ){
+    std::unique_ptr<wchar_t[]> buf{ new (std::nothrow) wchar_t[MAX_PATH]{} };
+    if( buf ){
+      GetModuleFileNameW( module_handle , buf.get() , MAX_PATH );
+      std::string path{};
+      if( filesystem_wcs_to_u8( std::wstring( buf.get() ), path ) ){
+        return env->make_string( env , path.data() , path.length() );
+      }
+    }
+  }
+  return env->intern( env , u8"nil" );
+}
+
 template<typename emacs_env_t>
 static emacs_value
 Fw32_imeadv_initialize( emacs_env *env , ptrdiff_t nargs , emacs_value args[] , void *data ) EMACS_NOEXCEPT
@@ -145,13 +185,12 @@ static emacs_value
 Fw32_imeadv_finalize( emacs_env* env , ptrdiff_t nargs , emacs_value args[] , void *data ) EMACS_NOEXCEPT
 {
   w32_imeadv::finalize();
-  message( env, std::string( u8"w32-imeadv-finalize") );
   return env->intern(env, u8"t");
 }
 
 template<typename emacs_env_t>
 static emacs_value
-Fw32_imeadv_get_communication_hwnd( emacs_env* env, ptrdiff_t nargs , emacs_value args[] , void *data ) EMACS_NOEXCEPT
+Fw32_imeadv__get_communication_hwnd( emacs_env* env, ptrdiff_t nargs , emacs_value args[] , void *data ) EMACS_NOEXCEPT
 {
   emacs_value return_value;
   HWND hwnd = w32_imeadv::get_communication_HWND();
@@ -208,15 +247,14 @@ Fw32_imeadv__default_message_input_handler ( emacs_env* env ,
           my_funcall( env , u8"w32-imeadv--notify-openstatus-open" );
           break;
         case 'F': // Request Composition Font
-          OutputDebugStringA( "dispatch font setting\n");
           // ===========================================
-          // TODO いまここ
+          // TODO いまここ フォントの設定を行うところ
           // ===========================================
-          my_funcall( env , u8"w32-imeadv--notify-composition-font" );
-          SendMessage( w32_imeadv::get_communication_HWND() ,
-                       WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT ,
-                       0 , 0 );
-          
+          if( !env->is_not_nil( env, my_funcall( env , u8"w32-imeadv--notify-composition-font" ) ) ){
+            SendMessage( w32_imeadv::get_communication_HWND() ,
+                         WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT ,
+                         0 , 0 );
+          }
           break;
         case 'R': // Reconversion
           OutputDebugStringA(" dispatch reconversion string\n");
@@ -281,7 +319,7 @@ Fw32_imeadv__notify_openstatus_open( emacs_env* env,
 {
   if( 0 == nargs )
     {
-      message( env , std::string( u8"Open" ));
+      message_utf8( env , std::string( u8"Open" ));
       return env->intern( env, u8"t" );
     }
   return env->intern( env , u8"nil" );
@@ -295,32 +333,80 @@ Fw32_imeadv__notify_openstatus_close( emacs_env* env,
 {
   if( 0 == nargs )
     {
-      message( env, std::string( u8"Close" ));
+      message_utf8( env, std::string( u8"Close" ));
       return env->intern( env , u8"t" );
     }
   return env->intern( env, u8"nil" );
 }
 
-template<typename eamcs_env_t>
+template<typename emacs_env_t>
 static emacs_value
-Fw32_imeadv__get_module_filename( emacs_env *env ,
-                                  ptrdiff_t nargs , emacs_value[] ,
-                                  void *) EMACS_NOEXCEPT
+Fw32_imeadv_advertise_ime_composition_font( emacs_env *env,
+                                            ptrdiff_t nargs , emacs_value value[],
+                                            void *data) EMACS_NOEXCEPT
 {
-  HMODULE module_handle = GetModuleHandle(MODULE_NAME);
-  if( module_handle ){
-    std::unique_ptr<wchar_t[]> buf{ new (std::nothrow) wchar_t[MAX_PATH]{} };
-    if( buf ){
-      GetModuleFileNameW( module_handle , buf.get() , MAX_PATH );
-      // 問題は、ココは、UTF-8 にしないといけない
-      // TODO :
-      std::string path{};
-      if( filesystem_wcs_to_u8( std::wstring( buf.get() ), path ) ){
-        return env->make_string( env , path.data() , path.length() );
+  WPARAM wParam = 0;
+  switch( nargs ){
+  case 2:
+    wParam = (WPARAM)env->extract_integer( env, value[1] );
+    if( !wParam || !IsWindow( (HWND)wParam ))
+      return env->intern(env,"nil");
+
+    /* fall Through */
+  case 1:
+    do{
+      if( env->is_not_nil( env, value[0] ) ){
+        w32_imeadv_composition_font_configure font_configure = {};
+        (void)(font_configure);
+        emacs_value family = my_funcall( env , "plist-get" , value[0] , env->intern(env,":family") );
+        if( env->is_not_nil( env, family ) ){
+          {
+            std::wstring font_family = my_copy_string_contents( env , family );
+            for( ptrdiff_t i = 0; i < LF_FACESIZE ; ++i ){
+              std::for_each( std::begin( font_family ), std::end( font_family ),
+                           [&]( const wchar_t &c ){
+                             if( (LF_FACESIZE-1) <= i  ) // The last one is terminate character.
+                               return;
+                             font_configure.lfFaceName[i++] = c;
+                           });
+              for( ; i < LF_FACESIZE ; ++i ){
+                font_configure.lfFaceName[i] = L'\0'; // fill by terminate character
+              }
+            }
+            font_configure.enable_bits |= W32_IME_FONT_CONFIGURE_BIT_FACENAME;
+          }
+        }
+
+        emacs_value height = my_funcall( env , "plist-get" , value[0] , env->intern(env,":height") );
+        if( env->is_not_nil( env, height ) ){
+          auto font_height = env->extract_integer( env, height );
+          font_configure.font_height = static_cast<decltype( font_configure.font_height )>( font_height );
+          font_configure.enable_bits |= W32_IME_FONT_CONFIGURE_BIT_FONTHEIGHT;
+        }
+
+#if !defined(NDEBUG)
+        {
+          std::wstringstream out{};
+          out << font_configure << std::endl;
+          OutputDebugStringW( out.str().c_str() );
+        }
+#endif /* !defined(NDEBUG) */
+        if( SendMessage(w32_imeadv::get_communication_HWND() ,
+                        WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT ,
+                        wParam , reinterpret_cast<LPARAM>(&font_configure) ) )
+          return env->intern( env , u8"t" );
+        else
+          return env->intern( env , u8"nil" );
       }
-    }
+    }while( false );
+    break;
+  default:
+    break;
   }
-  
+  if( 1 == nargs )
+    SendMessage( w32_imeadv::get_communication_HWND() ,
+                 WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT ,
+                 0 , 0 );
   return env->intern( env , u8"nil" );
 }
 
@@ -346,8 +432,8 @@ static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
                              u8"inject window"
                              "ウィンドウをサブクラス化して、IMM32の制御を行います", NULL )));
   fset( env,
-        env->intern( env , u8"w32-imeadv-get-communication-hwnd" ),
-        (env->make_function( env , 0 , 0 , Fw32_imeadv_get_communication_hwnd<emacs_env_t>,
+        env->intern( env , u8"w32-imeadv--get-communication-hwnd" ),
+        (env->make_function( env , 0 , 0 , Fw32_imeadv__get_communication_hwnd<emacs_env_t>,
                              u8"get comminication window handle ", NULL )));
 
   fset( env,
@@ -375,6 +461,19 @@ static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
                              "例えば現在のフレームのIMEを閉じるためには、\n"
                              "(w32-imeadv-set-openstatus-close (string-to-number (frame-parameter (selected-frame)'window-id)) )\n"
                              "とします\n", NULL )));
+  fset( env,
+        env->intern( env , u8"w32-imeadv-advertise-ime-composition-font"),
+        (env->make_function( env , 2 ,2 ,Fw32_imeadv_advertise_ime_composition_font<emacs_env_t>,
+                             u8"advertise IME composition window font\n"
+                             "IMEのコンポジションウィンドウで使用するフォントを通知します。",
+                             NULL )));
+  fset( env,
+        env->intern( env , u8"w32-imeadv-advertise-ime-composition-font-internal"),
+        (env->make_function( env , 1 ,1 ,Fw32_imeadv_advertise_ime_composition_font<emacs_env_t>,
+                             u8"advertise IME composition window font\n"
+                             "IMEのコンポジションウィンドウで使用するフォントを通知します。これは内部で使用するようです",
+                             NULL )));
+        
   fset( env,
         env->intern( env , u8"w32-imeadv--notify-openstatus-open"),
         (env->make_function( env, 0 ,0 ,Fw32_imeadv__notify_openstatus_open<emacs_env_t>,

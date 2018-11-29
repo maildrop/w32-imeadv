@@ -11,42 +11,17 @@
 	    (set-process-filter (get-process "ime") 'w32-imeadv-default-signal-proxy-filter ))
       (w32-imeadv-inject-control (string-to-number (frame-parameter (selected-frame)'window-id))) )))
 
-;; import from font-utils.el
-(defun w32-imeadv--import-font-utils--repair-split-list (list-val separator)
-  "Repair list LIST-VAL, split at string SEPARATOR, if SEPARATOR was escaped."
-  (let ((ret-val nil))
-    (while list-val
-      (let ((top (pop list-val)))
-        (while (string-match-p "\\\\\\'" top)
-          (callf concat top separator)
-          (when list-val
-            (callf concat top (pop list-val))))
-        (push top ret-val)))
-    (setq ret-val (nreverse ret-val))))
-;; import from font-utis.el
-(defun w32-imeadv--import-font-utils-name-from-xlfd (xlfd)
-  "Return the font-family name from XLFD, a string.
-
-This function accounts for the fact that the XLFD
-delimiter, \"-\", is a legal character within fields."
-  (let ((elts (w32-imeadv--import-font-utils--repair-split-list
-               (split-string
-                (replace-regexp-in-string
-                 "\\-\\(semi\\|demi\\|half\\|double\\|ultra\\|extra\\)-" "-\\1_" xlfd) "-") "-")))
-    (if (>= (length elts) 15)
-        (mapconcat 'identity
-                   (nreverse
-                    (nthcdr
-                     12
-                     (nreverse
-                      (nthcdr 2 elts)))) "-")
-      (nth 2 elts))))
-
-(defun w32-imeadv-select-font-family ()
-    "IMEが使うフォントをセレクトする"
+;; 手動オーバーライドするための変数 これを指定しているときには固定値になる
+(defvar w32-imeadv-ime-composition-font-attributes nil)
+;; w32-imeadv.dll から呼び出される Lisp の関数
+(defun w32-imeadv--notify-composition-font()
+  "IMEが使うフォントをセレクトする"
   (interactive)
-  (let ((pos (char-before) ))
-    (message (font-utils-name-from-xlfd (face-font 'default nil pos)))
+  (let ( ( w32-imeadv-ime-composition-font-attributes
+           (if (and (boundp 'w32-imeadv-ime-composition-font-attributes)
+                    (not (null w32-imeadv-ime-composition-font-attributes )))
+               w32-imeadv-ime-composition-font-attributes
+             (font-face-attributes (face-font 'default nil (char-before))))) )
+    ;; ここで run-hook 
+    (w32-imeadv-advertise-ime-composition-font-internal w32-imeadv-ime-composition-font-attributes )
     ))
-
-    

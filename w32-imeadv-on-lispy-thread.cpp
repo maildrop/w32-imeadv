@@ -90,20 +90,28 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
     }
   case WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT:
     {
+      /* いま、これは二種類の状況があって、
+       一つは、S式からの関数の呼び出しもう一つは、 request_composition_font からの呼び出し  wParam が ゼロかどうかを見るのが
+      手段である。*/
       OutputDebugStringA("WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT\n");
       if( user_data_ptr ){
         std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
-        assert( 1 == user_data_ptr->request_queue.size() );
-        if( !user_data_ptr->request_queue.empty() ){
-          HWND response_wnd = user_data_ptr->request_queue.front();
-          user_data_ptr->request_queue.pop();
-          if( response_wnd ){
-            OutputDebugStringA( "SendMessage to response_wnd WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT == enter ==\n");
-            auto b = SendMessage( response_wnd , WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT , wParam , lParam );
-            OutputDebugStringA( "SendMessage to response_wnd WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT == leave ==\n");
-            return b;
-          }else{
-            OutputDebugStringA( "response_wnd is null\n");
+        if( wParam ){
+          HWND response_wnd = reinterpret_cast<HWND>( wParam );
+          return SendMessage( response_wnd , WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT , wParam , lParam );
+        }else{
+          assert( 1 == user_data_ptr->request_queue.size() ); // ここか。これがいかんのか
+          if( !user_data_ptr->request_queue.empty() ){
+            HWND response_wnd = user_data_ptr->request_queue.front();
+            user_data_ptr->request_queue.pop();
+            if( response_wnd ){
+              OutputDebugStringA( "SendMessage to response_wnd WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT == enter ==\n");
+              auto b = SendMessage( response_wnd , WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT , wParam , lParam );
+              OutputDebugStringA( "SendMessage to response_wnd WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT == leave ==\n");
+              return b;
+            }else{
+              OutputDebugStringA( "response_wnd is null\n");
+            }
           }
         }
       }

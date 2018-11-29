@@ -397,7 +397,16 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
   case WM_W32_IMEADV_OPENSTATUS_CLOSE:
     return w32_imeadv_openstatus_close( hWnd , wParam , lParam );
   case WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT:
-    OutputDebugString( "WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT recieve and consume\n" );
+    {
+      OutputDebugString( "WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT recieve and consume\n" );
+      if( lParam ){
+        std::wstringstream out{};
+        out << *(reinterpret_cast<w32_imeadv_composition_font_configure*>( lParam ));
+        out << __FILE__ << "@L." << __LINE__ << " " ;
+        out << std::endl;
+        OutputDebugStringW( out.str().c_str() );
+      }
+    }
     return 1;
   default: 
     break;
