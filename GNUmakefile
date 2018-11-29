@@ -7,7 +7,7 @@ all_TARGET:= w32-imeadv.dll emacs-imm32-input-proxy.exe
 all: $(all_TARGET)
 
 w32-imeadv.dll: $(W32_IMEADV_DLL_OBJS)
-	g++ --shared -o $@ $(CXXFLAGS) $(CPPFLAGS) $+ -limm32 -lComctl32 -lUser32
+	g++ --shared -o $@ $(CXXFLAGS) $(CPPFLAGS) $+ -limm32 -lComctl32 -lgdi32 -lUser32 
 emacs-imm32-input-proxy.exe: $(emacs-imm32-input-proxy_OBJS)
 	g++ -o $@ $(CXXFLAGS) $(CPPFLAGS) $+ -lUser32
 

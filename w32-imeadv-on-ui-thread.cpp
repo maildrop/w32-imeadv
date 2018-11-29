@@ -400,8 +400,31 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
     {
       OutputDebugString( "WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT recieve and consume\n" );
       if( lParam ){
+        w32_imeadv_composition_font_configure* font_configure =
+          reinterpret_cast<w32_imeadv_composition_font_configure*>( lParam );
+        if( font_configure->enable_bits ){
+          HIMC hImc = ImmGetContext( hWnd );
+          if( hImc ){
+            LOGFONTW logFont = {0};
+            if( ImmGetCompositionFontW( hImc , &logFont ) ){
+              if( font_configure->enable_bits & W32_IME_FONT_CONFIGURE_BIT_FACENAME ){
+                std::copy( std::begin( font_configure->lfFaceName ) , std::end( font_configure->lfFaceName ) ,
+                           &(logFont.lfFaceName[0]) );
+              }
+              if( font_configure->enable_bits & W32_IME_FONT_CONFIGURE_BIT_FONTHEIGHT ){
+                const double point_size = static_cast<double>(font_configure->font_height) / 10.0f ;
+                logFont.lfHeight =
+                  static_cast<LONG>(-(point_size *
+                                      ( double( GetDeviceCaps( GetDC(NULL), LOGPIXELSY) ) / double( 72.0f ) )));
+                logFont.lfWidth = 0;
+              }
+              ImmSetCompositionFontW( hImc, &logFont );
+            }
+            ImmReleaseContext( hWnd, hImc );
+          }
+        }
         std::wstringstream out{};
-        out << *(reinterpret_cast<w32_imeadv_composition_font_configure*>( lParam ));
+        out << *font_configure;
         out << __FILE__ << "@L." << __LINE__ << " " ;
         out << std::endl;
         OutputDebugStringW( out.str().c_str() );
