@@ -21,10 +21,12 @@ IMM32 dynamic module for Emacs on Windows
 - デットロック解除用に 5sec 閾値のタイムアウトを設定しているので、画面がフリーズしたと思ったら、IME制御の状態がおかしくなっているとご理解ください。その場合、できるだけ早くセーブ終了をして作業結果の保全をお願いします。
 
 ## TODO
-- emacs-imm32-input-proxy.exe を rundll32.exe を使って、dll として導入を図ること。
-（そうすれば普通に単一のdllファイルで、w32-imeadv.dll だけで処理できるようになる）
 - 再変換機能ののコード追加
 - DocumentFeed 機能のコード追加
+- 開いた・閉じたの通知は来るので、mode line をアップデートするように lisp コードを書くこと
+- emacs-imm32-input-proxy.exe を rundll32.exe を使って、dll として導入を図ること。
+（そうすれば普通に単一のdllファイルで、w32-imeadv.dll だけで処理できるようになる）
+- 本体のemacs.exe が異常終了したときに、emacs-imm32-input-proxy.exe が残ってしまうので、emacs.exe のプロセスハンドルを開いてMsgWaitForMultipleObjectsで待つように変更すること。
 - 互換用の w32-ime.el の作成 （これは Lisp に精通する必要があるので遅れる）
 - daemon mode で立ち上げた場合に、どうするのかを考える（これは後回し）
 
