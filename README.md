@@ -26,6 +26,7 @@ IMM32 dynamic module for Emacs on Windows
 - 再変換機能ののコード追加
 - DocumentFeed 機能のコード追加
 - 互換用の w32-ime.el の作成 （これは Lisp に精通する必要があるので遅れる）
+- daemon mode で立ち上げた場合に、どうするのかを考える（これは後回し）
 
 ## できたこと
 - WM_IME_ 及びその他のウィンドウメッセージを収奪
