@@ -49,7 +49,7 @@ static BOOL filesystem_u8_to_wcs(const std::string &u8str, std::wstring &dst)
       if( 0 < MultiByteToWideChar( CP_UTF8 , MB_ERR_INVALID_CHARS ,
                                    u8str.data() , static_cast<int>(u8str.size()) ,
                                    buf.get() ,  wclen ) ){
-        dst = buf.get();
+        dst = std::wstring(buf.get(),wclen);
         return TRUE;
       }
     }
@@ -72,7 +72,7 @@ static BOOL filesystem_wcs_to_u8(const std::wstring &str, std::string &dst )
       if( 0 < WideCharToMultiByte( CP_UTF8 , 0 ,
                                    str.data() , static_cast<int>( str.size() ) , buf.get() , mblen ,
                                    nullptr , nullptr) ){
-        dst = buf.get();
+        dst = std::string(buf.get(),mblen);
         return TRUE;
       }
     }
