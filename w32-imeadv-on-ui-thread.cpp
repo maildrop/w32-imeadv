@@ -272,7 +272,8 @@ w32_imm_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
     {
       HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
       if( communication_window_handle ){
-        if( SendMessage( communication_window_handle , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT , 0 ,lParam ) ){
+        if( SendMessage( communication_window_handle , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT ,
+                         reinterpret_cast<WPARAM>(hWnd) , 0  ) ){
           // Wait Conversion Message
           OutputDebugStringA( "IMR_COMPOSITIONFONT waiting message\n");
           my_wait_message<WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT>(hWnd);
@@ -285,9 +286,11 @@ w32_imm_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
     {
       HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
       if( communication_window_handle ){
-        if( SendMessage( communication_window_handle , WM_W32_IMEADV_REQUEST_RECONVERSION_STRING , 0 ,lParam ) ){
+        if( SendMessage( communication_window_handle , WM_W32_IMEADV_REQUEST_RECONVERSION_STRING ,
+                         reinterpret_cast<WPARAM>(hWnd) , 0 ) ){
           // Wait Conversion Message
           OutputDebugStringA( "IMR_RECONVERTSTRING waiting message\n");
+          my_wait_message<WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING>( hWnd );
           return 0;
         }
       }
@@ -299,9 +302,11 @@ w32_imm_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
       if( communication_window_handle ){
           OutputDebugStringA( "IMR_DOCUMENTFEED sending proxy message\n");
         
-        if( SendMessage( communication_window_handle , WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING , 0 ,lParam ) ){
+          if( SendMessage( communication_window_handle , WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING ,
+                           reinterpret_cast<WPARAM>(hWnd) , 0 ) ){
           // Wait Conversion Message
           OutputDebugStringA( "IMR_DOCUMENTFEED waiting message\n");
+          my_wait_message<WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING>( hWnd );
           return 0;
         }
       }
@@ -430,6 +435,12 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
         OutputDebugStringW( out.str().c_str() );
       }
     }
+    return 1;
+  case WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING:
+    OutputDebugString(TEXT("consume WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING message\n"));
+    return 1;
+  case WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING:
+    OutputDebugString(TEXT("consume WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING message\n"));
     return 1;
   default: 
     break;

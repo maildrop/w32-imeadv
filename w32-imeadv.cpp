@@ -1,8 +1,13 @@
 ﻿/* 
+   Eamcs Dynamic Module のインターフェースを取り持つコード
+
    わかっていたけどすげー難しい。
 
-   emacs_env_25 のメンバーは、emacs_env* つまりemacs_env_26 を引数にとるので、
-   本当にそれでいいのか？
+   TODO::
+   未実装の Lisp 関数
+    - "w32-imeadv--notify-reconversion-string" 
+    - "w32-imeadv--notify-documentfeed-string"
+   emacs_env_25 のメンバーは、emacs_env* つまりemacs_env_26 を引数にとるのであるが本当にそれでいいのか？
 */
 
 #include <tchar.h>
@@ -28,27 +33,26 @@
 
 #define MODULE_NAME "w32-imeadv"
 
-// なるほど UTF-8 で値がくるので注意する必要があると。
 extern "C"{
   int plugin_is_GPL_compatible = 1;
 };
 
 static BOOL
-filesystem_u8_to_wcs(const std::string &u8str, std::wstring &dst)
+filesystem_u8_to_wcs(const std::string &src_u8str, std::wstring &dst)
 {
   int wclen = MultiByteToWideChar( CP_UTF8 , MB_ERR_INVALID_CHARS ,
-                                   u8str.data() , static_cast<int>(u8str.size()) , nullptr ,0 );
+                                   src_u8str.data() , static_cast<int>(src_u8str.size()) , nullptr ,0 );
   if(! wclen ){
     DWORD const lastError = GetLastError();
     if( ERROR_NO_UNICODE_TRANSLATION == lastError ){
-      OutputDebugString( "ERROR_NO_UNICODE_TRANSLATION\n" );
+      OutputDebugString( TEXT("ERROR_NO_UNICODE_TRANSLATION\n") );
     }
     return FALSE;
   }else{
     std::unique_ptr<wchar_t[]> buf{ new (std::nothrow) wchar_t[wclen]{} };
     if( static_cast<bool>( buf ) ){
       if( 0 < MultiByteToWideChar( CP_UTF8 , MB_ERR_INVALID_CHARS ,
-                                   u8str.data() , static_cast<int>(u8str.size()) ,
+                                   src_u8str.data() , static_cast<int>(src_u8str.size()) ,
                                    buf.get() ,  wclen ) ){
         dst = std::wstring(buf.get(),wclen);
         return TRUE;
@@ -59,7 +63,7 @@ filesystem_u8_to_wcs(const std::string &u8str, std::wstring &dst)
 }
 
 static BOOL
-filesystem_wcs_to_u8(const std::wstring &str, std::string &dst )
+filesystem_wcs_to_u8(const std::wstring &str, std::string &dst_u8str )
 {
   int mblen = WideCharToMultiByte( CP_UTF8 , 0 ,
                                    str.data() , static_cast<int>( str.size() ) , nullptr , 0 ,
@@ -72,7 +76,7 @@ filesystem_wcs_to_u8(const std::wstring &str, std::string &dst )
       if( 0 < WideCharToMultiByte( CP_UTF8 , 0 ,
                                    str.data() , static_cast<int>( str.size() ) , buf.get() , mblen ,
                                    nullptr , nullptr) ){
-        dst = std::string(buf.get(),mblen);
+        dst_u8str = std::string(buf.get(),mblen);
         return TRUE;
       }
     }
@@ -247,20 +251,46 @@ Fw32_imeadv__default_message_input_handler ( emacs_env* env ,
           my_funcall( env , u8"w32-imeadv--notify-openstatus-open" );
           break;
         case 'F': // Request Composition Font
-          // ===========================================
-          // TODO いまここ フォントの設定を行うところ
-          // ===========================================
           if( !env->is_not_nil( env, my_funcall( env , u8"w32-imeadv--notify-composition-font" ) ) ){
-            SendMessage( w32_imeadv::get_communication_HWND() ,
-                         WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT ,
-                         0 , 0 );
+            const HWND hWnd = w32_imeadv::get_communication_HWND();
+            if( hWnd && IsWindow( hWnd )){
+              SendMessage( hWnd,  WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT , 0 , 0 );
+            }else{
+              // may be ui thread dead locked,
+              message_utf8( env ,
+                            std::string{u8"w32_imeadv::get_communication_HWND() return NULL. "
+                                "You should wait 5 sec. (WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT)" });
+            }
           }
           break;
         case 'R': // Reconversion
+          // ===========================================
+          // TODO いまここ 再変換用の文字列を送るところ
+          // ===========================================
           OutputDebugStringA(" dispatch reconversion string\n");
+          if( !env->is_not_nil( env , my_funcall( env , u8"w32-imeadv--notify-reconversion-string") )){
+            const HWND hWnd = w32_imeadv::get_communication_HWND() ;
+            if( hWnd && IsWindow( hWnd )){
+              SendMessage( hWnd , WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING , 0 , 0 );
+            }else{
+              message_utf8( env,
+                            std::string{u8"w32_imeadv::get_communication_HWND() return NULL. "
+                                "You should wait 5 sec. (WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING)" });
+            }
+          }
           break;
         case 'D': // Document Feed
           OutputDebugStringA(" dispatch documentfeed string\n");
+          if( !env->is_not_nil( env , my_funcall( env , u8"w32-imeadv--notify-documentfeed-string") )){
+            const HWND hWnd = w32_imeadv::get_communication_HWND() ;
+            if( hWnd && IsWindow( hWnd ) ){
+              SendMessage( hWnd , WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING , 0, 0 );
+            }else{
+              message_utf8( env,
+                            std::string{u8"w32_imeadv::get_communication_HWND() return NULL. "
+                                "You should wait 5 sec. (WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING)" });
+            }
+          }
           break;
         default:
           break;

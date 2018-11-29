@@ -117,6 +117,50 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
       }
       return 0;
     }
+  case WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING:
+    {
+      OutputDebugStringA(  __FILE__ " WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING "); 
+      if( user_data_ptr ){
+        std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
+        if( wParam ){
+          HWND response_wnd = reinterpret_cast<HWND>( wParam );
+          return SendMessage( response_wnd , WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING , wParam , lParam );
+        }else{
+          assert( 1 == user_data_ptr->request_queue.size() );
+          if( !user_data_ptr->request_queue.empty() ){
+            HWND response_wnd = user_data_ptr->request_queue.front();
+            user_data_ptr->request_queue.pop();
+            OutputDebugStringA( __FILE__ "======\n" );
+            if( response_wnd ){
+              return SendMessage( response_wnd , WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING , wParam , lParam );
+            }else{
+              OutputDebugStringA( __FILE__ " response_wnd is nullptr\n" );
+            }
+          }
+        }
+      }
+      return 0;
+    }
+  case WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING:
+    {
+      if( user_data_ptr ){
+        std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
+        if( wParam ){
+          HWND response_wnd = reinterpret_cast<HWND>( wParam );
+          return SendMessage( response_wnd , WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING , wParam , lParam );
+        }else{
+          assert( 1 == user_data_ptr->request_queue.size() );
+          if( !user_data_ptr->request_queue.empty() ){
+            HWND response_wnd = user_data_ptr->request_queue.front();
+            user_data_ptr->request_queue.pop();
+            if( response_wnd ){
+              return SendMessage( response_wnd , WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING , wParam, lParam );
+            }
+          }
+        }
+      }
+      return 0;
+    }
   case WM_W32_IMEADV_REQUEST_COMPOSITION_FONT:
     {
       if( user_data_ptr ){
@@ -128,15 +172,8 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
           if( send_message_result ){
             user_data_ptr->request_queue.push ( reinterpret_cast<HWND>( wParam ) );
           }
-          OutputDebugStringA( send_message_result ? 
-                              __FILE__ " WM_W32_IMEADV_REQUEST_COMPOSITION_FONT OK" :
-                              __FILE__ " WM_W32_IMEADV_REQUEST_COMPOSITION_FONT FAIL");
           return send_message_result;
-        }else{
-          OutputDebugStringA(" user_data_ptr->signal_window is null\n");
         }
-      }else{
-        OutputDebugStringA(" user_data_ptr is nullptr\n" );
       }
       return 0;
     }
@@ -144,8 +181,14 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
     {
       if( user_data_ptr ){
         std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
+        assert( user_data_ptr->request_queue.empty() );
         if( user_data_ptr->signal_window ){
-          return SendMessage( user_data_ptr->signal_window , WM_W32_IMEADV_REQUEST_RECONVERSION_STRING, 0 ,0 );
+          auto send_message_result =
+            SendMessage( user_data_ptr->signal_window , WM_W32_IMEADV_REQUEST_RECONVERSION_STRING, wParam ,lParam );
+          if( send_message_result ){
+            user_data_ptr->request_queue.push( reinterpret_cast<HWND>( wParam ));
+          }
+          return send_message_result;
         }
       }
       return 0;
@@ -154,8 +197,14 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
     {
       if( user_data_ptr ){
         std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
+        assert( user_data_ptr->request_queue.empty() );
         if( user_data_ptr->signal_window ){
-          return SendMessage( user_data_ptr->signal_window , WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING, 0 ,0 );
+          auto send_message_result =
+            SendMessage( user_data_ptr->signal_window , WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING, wParam ,lParam );
+          if( send_message_result ){
+            user_data_ptr->request_queue.push( reinterpret_cast<HWND>( wParam ));
+          }
+          return send_message_result;
         }
       }
       return 0;
@@ -250,6 +299,11 @@ HWND& w32_imeadv::implements::get_communication_HWND_impl()
   OutputDebugStringA( user_data.communication_window_handle ?
                       "user_data.communication_window_handle have":
                       "user_data.communication_window_handle nil" );
+  if( !IsWindow( user_data.communication_window_handle ) ){
+    // The window was closed. 
+    // I will decide to set communication_window_handle is NULL 
+    // user_data.communication_window_handle = NULL ;
+  }
   return user_data.communication_window_handle;
 }
 
