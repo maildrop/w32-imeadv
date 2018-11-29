@@ -41,3 +41,7 @@ Emacs本体側のコード変更に弱かったり、パッチ当てるのと変
 ;; IME の開け閉めコード
 (w32-imeadv-set-openstatus-open (string-to-number (frame-parameter (selected-frame)'window-id)) )
 (w32-imeadv-set-openstatus-close (string-to-number (frame-parameter (selected-frame)'window-id)) )
+
+
+;; w32-imeadv--get-module-filename という関数を作ったので、多分こんな感じにするんでしょう
+(list "rundll32.exe" (w32-imeadv--get-module-filename) "imeadv_imm32_input_proxy" 12345)

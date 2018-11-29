@@ -30,6 +30,15 @@ static_assert( WM_W32_IMEADV_END < 0xffff , "WM_W32_IMEADV_END < 0xffff");
 extern "C"{
 #endif /* defined( __cplusplus ) */
 
+  
+  struct w32_ime_font_configure{
+    int font_height;
+    BYTE lfItalic;
+    BYTE lfUnserline;
+    BYTE lfStrikeOut;
+    wchar_t lfFaceName[ LF_FACESIZE ];
+  };
+
   /* UI thread subclasss proc */
   LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM lParam ,
                                     UINT_PTR uIdSubclass, DWORD_PTR dwRefData );
