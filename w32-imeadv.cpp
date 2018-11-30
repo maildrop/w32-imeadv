@@ -85,12 +85,11 @@ filesystem_wcs_to_u8(const std::wstring &str, std::string &dst_u8str )
 }
 
 template<typename emacs_env_t>
-static inline void
+static inline emacs_value
 message_utf8( emacs_env_t* env , const std::string& utf8_text ) 
 {
   std::array<emacs_value , 1> args = { env->make_string( env, utf8_text.c_str() ,  utf8_text.size() ) };
-  env->funcall( env , env->intern( env, u8"message" ), args.size(),  args.data() );
-  return;
+  return env->funcall( env , env->intern( env, u8"message" ), args.size(),  args.data() );
 }
 
 template<typename emacs_env_t>
@@ -152,6 +151,19 @@ my_funcall( emacs_env_t *env , const char* proc_name , Args ... args )
   }
   return env->intern( env , u8"nil" );
 }
+
+#if !defined( NDEBUG )
+/* リリース時までには、ちゃんと書く関数に対して割り当てる */
+template<typename emacs_env_t>
+static emacs_value
+Fw32_imeadv__not_implemented( emacs_env *env,
+                              ptrdiff_t nargs , emacs_value[] ,
+                              void* ) EMACS_NOEXCEPT
+{
+  message_utf8( env , std::string( u8"not implemented" ) );
+  return env->intern( env, u8"nil" );
+}
+#endif /* !defined( NDEBUG ) */
 
 template<typename eamcs_env_t>
 static emacs_value
@@ -444,6 +456,37 @@ template<typename emacs_env_t>
 static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
 {
   assert( env );
+#if !defined( NDEBUG )
+  { // これ本当は w32-imeadv-initialize の中でやった方がいいんじゃないかと思う
+    intmax_t emacs_major_version = 0;
+    intmax_t emacs_minor_version = 0;
+    { // major version 
+      emacs_value major_version_value =
+        my_funcall( env , u8"symbol-value" , env->intern( env, u8"emacs-major-version") );
+      if( env->is_not_nil( env , major_version_value ) ){
+        emacs_major_version = env->extract_integer( env , major_version_value );
+      }
+    }
+    { // minor version
+      emacs_value minor_version_value =
+        my_funcall( env , u8"symbol-value" , env->intern( env , u8"emacs-minor-version"));
+      if( env->is_not_nil( env , minor_version_value ) ){
+        emacs_minor_version = env->extract_integer( env , minor_version_value );
+      }
+    }
+
+#if !defined( NDEBUG )
+    std::stringstream out {};
+    out << "(" << __FILE__ << " L." << __LINE__ << ") "
+        << "w32-imeadv-system-configuration{"
+        << "emacs_major_version : " << emacs_major_version << "," 
+        << "emacs_minor_version : " << emacs_minor_version << "} ;" << std::endl;
+    OutputDebugStringA( out.str().c_str() );
+#endif /* !defined( NDEBUG ) */
+
+  }
+#endif /* !defined( NDEBUG ) */
+
   fset( env,
         env->intern( env , u8"w32-imeadv--get-module-filename" ),
         (env->make_function( env, 0, 0 , Fw32_imeadv__get_module_filename<emacs_env_t>,
@@ -503,7 +546,6 @@ static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
                              u8"advertise IME composition window font\n"
                              "IMEのコンポジションウィンドウで使用するフォントを通知します。これは内部で使用するようです",
                              NULL )));
-        
   fset( env,
         env->intern( env , u8"w32-imeadv--notify-openstatus-open"),
         (env->make_function( env, 0 ,0 ,Fw32_imeadv__notify_openstatus_open<emacs_env_t>,
@@ -512,6 +554,15 @@ static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
         env->intern( env , u8"w32-imeadv--notify-openstatus-close" ),
         (env->make_function( env, 0, 0 ,Fw32_imeadv__notify_openstatus_close<emacs_env_t>,
                              u8"IMEが閉じられた時に呼び出される関数です。",NULL )));
+
+  fset( env ,
+        env->intern( env , u8"w32-imeadv--notify-reconversion-string" ),
+        (env->make_function( env , 0, 0 ,Fw32_imeadv__not_implemented<emacs_env_t>,
+                             u8"IMEから再変換要求がなされたときに呼び出される関数です (まだ作っていない)" , NULL )));
+  fset( env,
+        env->intern( env , u8"w32-imeadv--notify-documentfeed-string" ),
+        (env->make_function( env , 0 , 0,Fw32_imeadv__not_implemented<emacs_env_t>,
+                             u8"IMEからDOCUMENT FEED がなされたときに呼び出される関数です（まだ作っていない)",NULL )));
   
   std::array<emacs_value,1> provide_args =  { env->intern( env , u8"w32-imeadv" ) };
   env->funcall( env,
