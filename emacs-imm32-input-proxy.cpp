@@ -3,6 +3,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <cassert>
 
 #include "w32-imeadv.h"
 
@@ -29,24 +30,18 @@ static LRESULT
   }
   switch( uMsg ){
   case WM_W32_IMEADV_NULL:
-    OutputDebugStringA("emacs-imm32-input-proxy recieve WM_W32_IMEADV_NULL\n");
     return notify_output( '*' );
   case WM_W32_IMEADV_END:
     return DestroyWindow( hWnd );
   case WM_W32_IMEADV_OPENSTATUS_OPEN :
-    OutputDebugStringA("emacs-imm32-input-proxy recieve WM_W32_IMEADV_OPENSTATUS_OPEN\n");
     return notify_output( '1' );
   case WM_W32_IMEADV_OPENSTATUS_CLOSE :
-    OutputDebugStringA("emacs-imm32-input-proxy recieve WM_W32_IMEADV_OPENSTATUS_CLOSE\n");
     return notify_output( '0' );
   case WM_W32_IMEADV_REQUEST_RECONVERSION_STRING:
-    OutputDebugStringA("emacs-imm32-input-proxy recieve WM_W32_IMEADV_REQUEST_RECONVERSION_STRING\n");
     return notify_output( 'R' );
   case WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING:
-    OutputDebugStringA("emacs-imm32-input-proxy recieve WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING\n");
     return notify_output( 'D' );
   case WM_W32_IMEADV_REQUEST_COMPOSITION_FONT:
-    OutputDebugStringA("emacs-imm32-input-proxy recieve WM_W32_IMEADV_REQUEST_COMPOSITION_FONT\n");
     return notify_output( 'F' );
   default:
     break;
@@ -108,15 +103,8 @@ int main(int argc,char* argv[])
     if( hWnd ){
       if( controlWindow ){
         if( IsWindow( controlWindow ) ){
-          OutputDebugString( "emacs-ime32-input-proxy send WM_W32_IMEADV_NOTIFY_SIGNAL_HWND\n" );
-          PostMessageA( controlWindow , WM_W32_IMEADV_NOTIFY_SIGNAL_HWND , (WPARAM)(hWnd), 0 );
+          VERIFY( PostMessageA( controlWindow , WM_W32_IMEADV_NOTIFY_SIGNAL_HWND , (WPARAM)(hWnd), 0 ) );
         }
-      }else{
-        PostMessageA( hWnd , WM_W32_IMEADV_OPENSTATUS_OPEN , 0 , 0 );
-        PostMessageA( hWnd , WM_W32_IMEADV_OPENSTATUS_CLOSE , 0 , 0 );
-        PostMessageA( hWnd , WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING , 0 , 0 );
-        PostMessageA( hWnd , WM_W32_IMEADV_REQUEST_RECONVERSION_STRING , 0 , 0 );
-        PostMessageA( hWnd , WM_W32_IMEADV_END , 0 ,0  );
       }
       
       for(;;){
@@ -133,7 +121,7 @@ int main(int argc,char* argv[])
     end_of_message_pump:
       ;
     }
-    UnregisterClass( reinterpret_cast<LPCTSTR>( windowAtom ) , hInstance);
+    VERIFY( UnregisterClass( reinterpret_cast<LPCTSTR>( windowAtom ) , hInstance) );
   }
 
   return EXIT_SUCCESS;

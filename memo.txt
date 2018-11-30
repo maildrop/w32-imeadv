@@ -45,3 +45,6 @@ Emacs本体側のコード変更に弱かったり、パッチ当てるのと変
 
 ;; w32-imeadv--get-module-filename という関数を作ったので、多分こんな感じにするんでしょう
 (list "rundll32.exe" (w32-imeadv--get-module-filename) "imeadv_imm32_input_proxy" 12345)
+
+TODO
+after-make-frame-functions を使って フレーム作成後に subclassify のフックをかけるようにしよう

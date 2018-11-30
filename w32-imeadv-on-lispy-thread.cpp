@@ -41,25 +41,27 @@ static LRESULT
 w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
                                               HWND hWnd, UINT uMsg , WPARAM wParam , LPARAM lParam )
 {
-  OutputDebugStringA("w32_imeadv_lispy_communication_wnd_proc_impl");
+  DebugOutputStatic( "w32_imeadv_lispy_communication_wnd_proc_impl" );
 
   if( WM_W32_IMEADV_SUBCLASSIFY == uMsg ){
-    OutputDebugStringA("w32_imeadv_lispy_communication_wnd_proc_impl WM_W32_IMEADV_SUBCLASSIFY message\n" );
+    DebugOutputStatic("w32_imeadv_lispy_communication_wnd_proc_impl WM_W32_IMEADV_SUBCLASSIFY message" );
     return 0;
   }
   
   // implementation note . この時点では、まだ、ロックがかかっていないので、user_dataの中身に触る前に、ロックをかけること
   if( WM_W32_IMEADV_NOTIFY_SIGNAL_HWND == uMsg ){
-      OutputDebugStringA("w32_imeadv_lispy_communication_wnd_proc_impl WM_W32_IMEADV_NOTIFY_SIGNAL_HWND message\n");
-      if( user_data_ptr ){
-        std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
-        user_data_ptr->signal_window = (HWND)(wParam);
-      }
-      return 0;
+    DebugOutputStatic( "w32_imeadv_lispy_communication_wnd_proc_impl WM_W32_IMEADV_NOTIFY_SIGNAL_HWND message" );
+    if( user_data_ptr ){
+      std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
+      user_data_ptr->signal_window = (HWND)(wParam);
+    }
+    return 0;
   }
+  
   switch( uMsg ){
   case WM_W32_IMEADV_NULL :
     {
+      DebugOutputStatic( "w32_imeadv_lispy_communication_wnd_proc_impl WM_W32_IMEADV_NULL message" );
       if( user_data_ptr ){
         std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
         if( user_data_ptr->signal_window ){
@@ -105,12 +107,12 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
             HWND response_wnd = user_data_ptr->request_queue.front();
             user_data_ptr->request_queue.pop();
             if( response_wnd ){
-              OutputDebugStringA( "SendMessage to response_wnd WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT == enter ==\n");
+              DebugOutputStatic("SendMessage to response_wnd WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT == enter ==");
               auto b = SendMessage( response_wnd , WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT , wParam , lParam );
-              OutputDebugStringA( "SendMessage to response_wnd WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT == leave ==\n");
+              DebugOutputStatic("SendMessage to response_wnd WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT == leave ==");
               return b;
             }else{
-              OutputDebugStringA( "response_wnd is null\n");
+              DebugOutputStatic( "response_wnd is null" );
             }
           }
         }
@@ -119,7 +121,7 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
     }
   case WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING:
     {
-      OutputDebugStringA(  __FILE__ " WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING "); 
+      DebugOutputStatic( " WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING " );
       if( user_data_ptr ){
         std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
         if( wParam ){
@@ -130,11 +132,11 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
           if( !user_data_ptr->request_queue.empty() ){
             HWND response_wnd = user_data_ptr->request_queue.front();
             user_data_ptr->request_queue.pop();
-            OutputDebugStringA( __FILE__ "======\n" );
+            DebugOutputStatic("======");
             if( response_wnd ){
               return SendMessage( response_wnd , WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING , wParam , lParam );
             }else{
-              OutputDebugStringA( __FILE__ " response_wnd is nullptr\n" );
+              DebugOutputStatic( "response_wnd is nullptr" );
             }
           }
         }
@@ -355,7 +357,7 @@ BOOL w32_imeadv::subclassify_hwnd( HWND hWnd , DWORD_PTR dwRefData)
                   auto nexthook_result = ::CallNextHookEx( hook_parameter.subclassify_hook , code , wParam , lParam );
                   if( ! UnhookWindowsHookEx( hook_parameter.subclassify_hook ) ){
 #if !defined( NDEBUG )
-                    OutputDebugStringA( "UnhookWindowsHookEx faild" );
+                    DebugOutputStatic( "UnhookWindowsHookEx faild" );
 #endif /* !defined( NDEBUG ) */
                   }
                   hook_parameter.subclassify_hook = 0;

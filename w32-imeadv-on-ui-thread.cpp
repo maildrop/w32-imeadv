@@ -145,15 +145,15 @@ w32_imm_wm_ime_startcomposition_emacs26( HWND hWnd , WPARAM wParam , LPARAM lPar
       if( SendMessage( communication_window_handle , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT ,
                        reinterpret_cast<WPARAM>(hWnd) ,lParam ) ){
           // Wait Conversion Message
-        OutputDebugStringA( "IMR_COMPOSITIONFONT waiting message\n");
+        DebugOutputStatic( "IMR_COMPOSITIONFONT waiting message" );
         ignore_wm_ime_start_composition = 1;
         my_wait_message<WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT>(hWnd);
         return DefWindowProc( hWnd, WM_IME_STARTCOMPOSITION , wParam , lParam );
       }else{
-        OutputDebugStringA( "SendMessage WM_W32_IMEADV_REQUEST_COMPOSITION_FONT failed" );
+        DebugOutputStatic( "SendMessage WM_W32_IMEADV_REQUEST_COMPOSITION_FONT failed" );
       }
     }else{
-      OutputDebugStringA( " communication_window_handle is 0 " );
+      DebugOutputStatic( " communication_window_handle is 0 " );
     }
   }
   return result;
@@ -282,11 +282,23 @@ w32_imm_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
       }
       break;
     }
+  case IMR_CONFIRMRECONVERTSTRING:
+    {
+      DebugOutputStatic( "IMR_CONFIRMRECONVERTSTRING" );
+    }
+    break;
   case IMR_RECONVERTSTRING:
     {
+      DebugOutputStatic( "IMR_RECONVERTSTRING" );
+      // TODO いまここ作業中
       HIMC hImc = ImmGetContext( hWnd );
       if( hImc ){
-
+        auto reconv_size = ImmGetCompositionStringW( hImc,  GCS_COMPSTR , NULL , 0 );
+        {
+          std::wstringstream out{};
+          out << "reconversion size " << reconv_size << ", lParam = " << lParam << DEBUG_STRING("");
+          OutputDebugStringW( out.str().c_str() );
+        }
         ImmReleaseContext( hWnd , hImc );
       }
       HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
