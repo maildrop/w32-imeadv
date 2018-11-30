@@ -75,7 +75,9 @@ operator<<( std::wostream& out , const w32_imeadv_composition_font_configure &co
 #endif /* !defined( NDEBUG ) */
 #endif /* defined( __cplusplus ) */
 
-
+/** 
+    Debug macros.
+ */
 #if !defined(DEBUG_STRING00)
 #define DEBUG_STRING00( exp ) # exp 
 #endif /* !defined(DEBUG_STRING00) */
@@ -99,7 +101,7 @@ operator<<( std::wostream& out , const w32_imeadv_composition_font_configure &co
 #define VERIFY( exp ) (void)( exp ) 
 #endif /* defined( __cplusplus ) */
 # else /* defined( NDEBUG ) */ 
-#define VERIFY( exp ) do{ assert( exp ) }while( false )
+#define VERIFY( exp ) do{ assert( exp ); }while( false )
 # endif /* defined( NDEBUG ) */
 #endif /* !defined( VERIFY ) */
 
