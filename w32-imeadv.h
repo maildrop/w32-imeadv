@@ -76,5 +76,32 @@ operator<<( std::wostream& out , const w32_imeadv_composition_font_configure &co
 #endif /* defined( __cplusplus ) */
 
 
+#if !defined(DEBUG_STRING00)
+#define DEBUG_STRING00( exp ) # exp 
+#endif /* !defined(DEBUG_STRING00) */
+#if !defined(DEBUG_STRING0)
+#define DEBUG_STRING0( exp ) DEBUG_STRING00( exp )
+#endif /* !defined(DEBUG_STRING0) */
+#if !defined( DEBUG_STRING )
+#define DEBUG_STRING( exp ) exp  " (@" __FILE__ ",L." DEBUG_STRING0( __LINE__ ) ")\n"
+#endif /* !defined( DEBUG_STRING ) */
+
+#if !defined( DebugOutputStatic )
+#define DebugOutputStatic( exp ) do{ OutputDebugString( TEXT(DEBUG_STRING( exp )) ); }while( false )
+#endif /* !defined( DebugOutputStatic ) */
+
+/* simple VERIFY macros */
+#if !defined( VERIFY )
+# if defined( NDEBUG )
+#if defined( __cplusplus )
+#define VERIFY( exp ) do{ std::ignore = ( exp ); }while( false )
+#else /* defined( __cplusplus ) */
+#define VERIFY( exp ) (void)( exp ) 
+#endif /* defined( __cplusplus ) */
+# else /* defined( NDEBUG ) */ 
+#define VERIFY( exp ) do{ assert( exp ) }while( false )
+# endif /* defined( NDEBUG ) */
+#endif /* !defined( VERIFY ) */
+
 #endif /* !defined( W32_IMEADV_H_HEADER_GUARD_69b36924_1b02_4782_bf0b_b8c02d62065a ) */
 
