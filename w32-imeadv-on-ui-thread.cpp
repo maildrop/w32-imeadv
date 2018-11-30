@@ -73,7 +73,7 @@ my_wait_message( HWND hWnd )
       ~raii(){
         if( !::RemoveWindowSubclass( this->hWnd, this->subclass_proc , this->uIdSubclass ) ){
           // 不本意ながら、 waiting_data を detach して、状況の保全を図る
-          OutputDebugString( __FILE__ " RemoveWindowSubClass failed. " );
+          DebugOutputStatic( "** WARNING ** RemoveWindowSubClass failed. " );
           this->waiting_data.release();
         }
       }
@@ -97,7 +97,7 @@ my_wait_message( HWND hWnd )
         }
       case WAIT_TIMEOUT:
         {
-          OutputDebugStringA( "my_wait_message TIME_OUT!" );
+          DebugOutputStatic( "** WARNNING ** my_wait_message TIME_OUT!" );
           return FALSE;
         }
         goto end_of_loop;
@@ -284,6 +284,11 @@ w32_imm_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
     }
   case IMR_RECONVERTSTRING:
     {
+      HIMC hImc = ImmGetContext( hWnd );
+      if( hImc ){
+
+        ImmReleaseContext( hWnd , hImc );
+      }
       HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
       if( communication_window_handle ){
         if( SendMessage( communication_window_handle , WM_W32_IMEADV_REQUEST_RECONVERSION_STRING ,
@@ -437,10 +442,10 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
     }
     return 1;
   case WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING:
-    OutputDebugString(TEXT("consume WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING message\n"));
+    DebugOutputStatic( "consume WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING message" );
     return 1;
   case WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING:
-    OutputDebugString(TEXT("consume WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING message\n"));
+    DebugOutputStatic( "consume WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING message\n" );
     return 1;
   default: 
     break;
@@ -458,9 +463,9 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
             if( ImmSetOpenStatus( hImc , openStatus ) )
               ; // success 
             else
-              OutputDebugStringA( "w32-imeadv subclass_proc second ImmSetStateus failed\n" );
+              DebugOutputStatic( "w32-imeadv subclass_proc second ImmSetStateus failed");
           else
-            OutputDebugStringA( "w32-imeadv subclass_proc first ImmSetStateus failed\n");
+            DebugOutputStatic( "w32-imeadv subclass_proc first ImmSetStateus failed" );
           ImmReleaseContext( hWnd , hImc );
         }
       
