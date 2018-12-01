@@ -120,7 +120,7 @@ namespace imeadv{
   }
   
   inline const char16_t*
-  advance_consider_surroagexo( const char16_t * p , size_t i){
+  advance_consider_surroage( const char16_t * p , size_t i){
     for( size_t j = 0 ; j < i && *p != L'\0' ; ++j, ++p ){
       if( ( 0xd800 <= *p && *p < 0xdc00 ) /* High Surrogate */ ){
         if( (0xdc00 <= *(p+1) && *(p+1) < 0xE000 ) /* Low Surroage */ ){
