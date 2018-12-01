@@ -132,6 +132,18 @@ namespace imeadv{
     }
     return p;
   }
+
+#ifdef _WIN32
+  template<size_t N>
+  const wchar_t*
+  advance_surroage( const wchar_t (&p)[N] , size_t i ){
+    static_assert(sizeof( char16_t ) == sizeof( wchar_t ) && 
+                  std::is_same<typename std::is_unsigned<char16_t>::type ,
+                  typename std::is_unsigned<wchar_t>::type >::value ,"");
+    return reinterpret_cast<const wchar_t*>(advance_consider_surroage( reinterpret_cast<const char16_t *>(&p[0]) , i ));
+  }
+#endif /* _WIN32 */
+
 } /* end of namespace imeadv */
 
 #endif /* defined( __cplusplus ) */
