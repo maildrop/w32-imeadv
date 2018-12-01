@@ -94,13 +94,13 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
     {
       /* いま、これは二種類の状況があって、
        一つは、S式からの関数の呼び出しもう一つは、 request_composition_font からの呼び出し  wParam が ゼロかどうかを見るのが
-      手段である。*/
-      OutputDebugStringA("WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT\n");
+       手段である。*/
+      DebugOutputStatic("WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT");
       if( user_data_ptr ){
         std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
         if( wParam ){
           HWND response_wnd = reinterpret_cast<HWND>( wParam );
-          return SendMessage( response_wnd , WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT , wParam , lParam );
+          return SendMessageW( response_wnd , WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT , wParam , lParam );
         }else{
           assert( 1 == user_data_ptr->request_queue.size() ); // ここか。これがいかんのか
           if( !user_data_ptr->request_queue.empty() ){
@@ -108,7 +108,7 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
             user_data_ptr->request_queue.pop();
             if( response_wnd ){
               DebugOutputStatic("SendMessage to response_wnd WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT == enter ==");
-              auto b = SendMessage( response_wnd , WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT , wParam , lParam );
+              auto b = SendMessageW( response_wnd , WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT , wParam , lParam );
               DebugOutputStatic("SendMessage to response_wnd WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT == leave ==");
               return b;
             }else{
@@ -126,7 +126,7 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
         std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
         if( wParam ){
           HWND response_wnd = reinterpret_cast<HWND>( wParam );
-          return SendMessage( response_wnd , WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING , wParam , lParam );
+          return SendMessageW( response_wnd , WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING , wParam , lParam );
         }else{
           assert( 1 == user_data_ptr->request_queue.size() );
           if( !user_data_ptr->request_queue.empty() ){
@@ -134,7 +134,7 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
             user_data_ptr->request_queue.pop();
             DebugOutputStatic("======");
             if( response_wnd ){
-              return SendMessage( response_wnd , WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING , wParam , lParam );
+              return SendMessageW( response_wnd , WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING , wParam , lParam );
             }else{
               DebugOutputStatic( "response_wnd is nullptr" );
             }
@@ -145,18 +145,19 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
     }
   case WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING:
     {
+      DebugOutputStatic( " WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING " );
       if( user_data_ptr ){
         std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
         if( wParam ){
           HWND response_wnd = reinterpret_cast<HWND>( wParam );
-          return SendMessage( response_wnd , WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING , wParam , lParam );
+          return SendMessageW( response_wnd , WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING , wParam , lParam );
         }else{
           assert( 1 == user_data_ptr->request_queue.size() );
           if( !user_data_ptr->request_queue.empty() ){
             HWND response_wnd = user_data_ptr->request_queue.front();
             user_data_ptr->request_queue.pop();
             if( response_wnd ){
-              return SendMessage( response_wnd , WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING , wParam, lParam );
+              return SendMessageW( response_wnd , WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING , wParam, lParam );
             }
           }
         }
@@ -252,7 +253,7 @@ BOOL w32_imeadv::initialize()
   }
   HINSTANCE hInstance = GetModuleHandle( NULL );
   if( !user_data.windowAtom ){
-    WNDCLASSEX wndClassEx = {};
+    WNDCLASSEXW wndClassEx = {};
     wndClassEx.cbSize        = sizeof( WNDCLASSEX );
     wndClassEx.style         = 0;
     wndClassEx.lpfnWndProc   = w32_imeadv_lispy_communication_wnd_proc;
@@ -263,14 +264,14 @@ BOOL w32_imeadv::initialize()
     wndClassEx.hCursor       = LoadCursor(nullptr, IDC_ARROW);
     wndClassEx.hbrBackground = (HBRUSH)(COLOR_WINDOW+1);
     wndClassEx.lpszMenuName  = 0;
-    wndClassEx.lpszClassName = "EmacsIMM32CommunicationWindowClassA";
+    wndClassEx.lpszClassName = L"EmacsIMM32CommunicationWindowClassA";
     wndClassEx.hIconSm       = 0;
-    user_data.windowAtom = ::RegisterClassExA( &wndClassEx );
+    user_data.windowAtom = ::RegisterClassExW( &wndClassEx );
   }
   if( user_data.windowAtom ){
     user_data.communication_window_handle =
-      CreateWindowExA(0,reinterpret_cast<LPCSTR>( user_data.windowAtom ) ,
-                      "EmacsIMM32CommunicationWindow",
+      CreateWindowExW(0,reinterpret_cast<LPWSTR>( user_data.windowAtom ) ,
+                      L"EmacsIMM32CommunicationWindow",
                       WS_OVERLAPPEDWINDOW,
                       CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
                       HWND_MESSAGE, NULL, hInstance, &user_data);
@@ -342,24 +343,31 @@ BOOL w32_imeadv::subclassify_hwnd( HWND hWnd , DWORD_PTR dwRefData)
           MSG* msg = reinterpret_cast<MSG*>(lParam);
           if( msg )
             do{
-              if(! msg->hwnd )
+              if(! msg->hwnd ) // スレッドメッセージではない。
                 break;
-              if( msg->message == WM_W32_IMEADV_SUBCLASSIFY )
+              if( msg->message == WM_W32_IMEADV_SUBCLASSIFY ) // メッセージが WM_W32_IMEADV_SUBCLASSIFY である
                 {
-                  // TODO implement this point
+                  // いま、これはスレッドのフック関数なので、今処理をしているウィンドウは当該のスレッドで動いている
+                  // これは必ず真になるはず。
                   assert( GetCurrentThreadId() == GetWindowThreadProcessId( msg->hwnd , nullptr ));
 
+                  // ウィンドウをサブクラス化して、いくつかのメッセージをフックする。
                   SetWindowSubclass( msg->hwnd ,
                                      subclass_proc ,
                                      reinterpret_cast<UINT_PTR>( subclass_proc ),
                                      static_cast<DWORD_PTR>( msg->lParam ) );
-                  
+
+                  // 今、作業が終わったので、自分自身をスレッドのフックから外す
+
+                  // まず先に次のフックを処理してから、
                   auto nexthook_result = ::CallNextHookEx( hook_parameter.subclassify_hook , code , wParam , lParam );
+                  // 
+                  // 自分自身をサブクラス化から、外す。
                   if( ! UnhookWindowsHookEx( hook_parameter.subclassify_hook ) ){
 #if !defined( NDEBUG )
                     DebugOutputStatic( "UnhookWindowsHookEx faild" );
 #endif /* !defined( NDEBUG ) */
-                  }
+                  }                  
                   hook_parameter.subclassify_hook = 0;
                   return nexthook_result;
                 }

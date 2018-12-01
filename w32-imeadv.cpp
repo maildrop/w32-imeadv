@@ -3,8 +3,7 @@
 
    わかっていたけどすげー難しい。
 
-   TODO::
-   未実装の Lisp 関数
+   TODO:: 未実装の Lisp 関数
     - "w32-imeadv--notify-reconversion-string" 
     - "w32-imeadv--notify-documentfeed-string"
    emacs_env_25 のメンバーは、emacs_env* つまりemacs_env_26 を引数にとるのであるが本当にそれでいいのか？
@@ -463,36 +462,52 @@ Fw32_imeadv__notify_reconversion_string( emacs_env *env,
   emacs_value pos = my_funcall( env , u8"point" );
   emacs_value begin = my_funcall( env , u8"line-beginning-position");
   emacs_value end = my_funcall( env , u8"line-end-position" );
+
+  
   auto first_half_num = env->extract_integer( env,my_funcall( env , u8"-" , pos , begin ) );
-  auto letter_half_num = env->extract_integer( env, my_funcall( env, u8"-" , end , pos ) );
+  auto later_half_num = env->extract_integer( env, my_funcall( env, u8"-" , end , pos ) );
+
   
   emacs_value first_half = my_funcall( env , u8"buffer-substring-no-properties" ,
                                        begin , pos );
-  emacs_value letter_half = my_funcall( env , u8"buffer-substring-no-properties",
+  emacs_value later_half = my_funcall( env , u8"buffer-substring-no-properties",
                                         pos ,  end );
   std::wstring first_half_str =
     ( env->is_not_nil( env,first_half ) ) ? my_copy_string_contents( env , first_half ) : std::wstring{};
+  std::wstring later_half_str =
+    ( env->is_not_nil( env, later_half )) ? my_copy_string_contents( env , later_half ) : std::wstring{};
 
+  using imeadv::NotifyReconversionString;
+  NotifyReconversionString nrs = {};
+  {
+    nrs.pos = env->extract_integer( env , pos );
+    nrs.begin = env->extract_integer( env , begin );
+    nrs.end = env->extract_integer( env , end );
+    nrs.first_half_num = first_half_num;
+    nrs.later_half_num = later_half_num;
+    nrs.first_half = first_half_str;
+    nrs.later_half = later_half_str;
+  }
+  
   // ちゃんとサロゲートペアを処理しているかどうかのテスト
   if(first_half_num != static_cast<decltype(first_half_num)>(first_half_str.length()) ){
     std::wstringstream out{};
     out << "first half contain surrogate-pair" << " "
         << first_half_num << " "
         << static_cast<decltype(first_half_num)>(first_half_str.length()) 
-        << DEBUG_STRING(" ") << std::endl;
+        << DEBUG_STRING(L" ") << std::endl;
     OutputDebugStringW( out.str().c_str() );
   }
-  std::wstring letter_half_str =
-    ( env->is_not_nil( env, letter_half )) ? my_copy_string_contents( env , letter_half ) : std::wstring{};
-  if( letter_half_num != static_cast<decltype(letter_half_num)>(letter_half_str.length()) ){
+  if( later_half_num != static_cast<decltype(later_half_num)>(later_half_str.length()) ){
     std::wstringstream out{};
     out << "letter half contain surrogate-pair" << " "
-        << letter_half_num << " "
-        << static_cast<decltype(letter_half_num)>(letter_half_str.length() )
-        << DEBUG_STRING(" ") << std::endl;
+        << later_half_num << " "
+        << static_cast<decltype(later_half_num)>(later_half_str.length() )
+        << DEBUG_STRING(L" ") << std::endl;
     OutputDebugStringW( out.str().c_str() );
   }
-  
+
+#if !defined( NDEBUG )
   {
     std::string first_half_u8{};
     if( filesystem_wcs_to_u8( first_half_str , first_half_u8 ) ){
@@ -500,9 +515,18 @@ Fw32_imeadv__notify_reconversion_string( emacs_env *env,
     }
   }
   {
-    std::string letter_half_u8{};
-    if( filesystem_wcs_to_u8( letter_half_str , letter_half_u8 ) ){
-      message_utf8( env , (std::string(u8"後半: ") + letter_half_u8).c_str() );
+    std::string later_half_u8{};
+    if( filesystem_wcs_to_u8( later_half_str , later_half_u8 ) ){
+      message_utf8( env , (std::string(u8"後半: ") + later_half_u8).c_str() );
+    }
+  }
+#endif /* !defined( NDEBUG ) */
+  {
+    const HWND hWnd = w32_imeadv::get_communication_HWND();
+    if( hWnd && IsWindow( hWnd ) ){
+      if( SendMessage( hWnd , WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING , 0 , reinterpret_cast<LPARAM>( &nrs ) ) ){
+        return env->intern( env , u8"t" ) ;
+      }
     }
   }
   return env->intern( env, u8"nil" );

@@ -144,6 +144,17 @@ namespace imeadv{
   }
 #endif /* _WIN32 */
 
+  // LPARAM 
+  struct NotifyReconversionString{
+    intmax_t pos;
+    intmax_t begin;
+    intmax_t end;
+    intmax_t first_half_num;
+    intmax_t later_half_num;
+    std::wstring first_half;
+    std::wstring later_half;
+  };
+  
 } /* end of namespace imeadv */
 
 #endif /* defined( __cplusplus ) */
