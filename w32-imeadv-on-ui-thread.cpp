@@ -133,13 +133,15 @@ w32_imm_wm_ime_startcomposition_emacs26( HWND hWnd , WPARAM wParam , LPARAM lPar
   /* ignore_wm_ime_start_composition を 1にするタイミングについては、
      無節操に、 WM_IME_STARTCOMPOSITION を送る GNU Emacs があるので
      これを止めてよいタイミングは、フォントの設定を送ることができたときである。
-     とする。
-  */
+     とする。 
+     TODO : この前提は間違っているので修正が必要  */
+
   if( ignore_wm_ime_start_composition ){
     return result;
   }else{
     OutputDebugStringA("w32_imm_wm_ime_startcomposition effective\n");
-  // TODO -- ここでフォントの要求をするべきだよね
+
+    // ここでフォントの要求をする
     HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
     if( communication_window_handle ){
       if( SendMessage( communication_window_handle , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT ,
@@ -264,12 +266,15 @@ static LRESULT
 w32_imm_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
 {
   switch( wParam ){
-  case IMR_COMPOSITIONWINDOW:
+  case IMR_CANDIDATEWINDOW:
     {
-      OutputDebugStringA( "w32_imm_wm_ime_request -> IMR_COMPOSITIONWINDOW \n" );
+      DebugOutputStatic("w32_imm_wm_ime_request -> IMR_CANDIDATEWINDOW" );
+      break;
     }
+
   case IMR_COMPOSITIONFONT:
     {
+      DebugOutputStatic("w32_imm_wm_ime_request -> IMR_COMPOSITIONFONT");
       HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
       if( communication_window_handle ){
         if( SendMessage( communication_window_handle , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT ,
@@ -282,21 +287,66 @@ w32_imm_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
       }
       break;
     }
+
+  case IMR_COMPOSITIONWINDOW:
+    {
+      DebugOutputStatic("w32_imm_wm_ime_request -> IMR_COMPOSITIONWINDOW");
+      break;
+    }
+    
   case IMR_CONFIRMRECONVERTSTRING:
     {
-      DebugOutputStatic( "IMR_CONFIRMRECONVERTSTRING" );
+      DebugOutputStatic( "w32_imm_wm_ime_request -> IMR_CONFIRMRECONVERTSTRING" );
     }
     break;
+
+  case IMR_DOCUMENTFEED:
+    {
+      DebugOutputStatic( "w32_imm_wm_ime_request -> IMR_DOCUMENTFEED" );
+      HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
+      if( communication_window_handle ){
+
+        
+          if( SendMessage( communication_window_handle , WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING ,
+                           reinterpret_cast<WPARAM>(hWnd) , 0 ) ){
+          // Wait Conversion Message
+          my_wait_message<WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING>( hWnd );
+          return 0;
+        }
+      }
+      break;
+    }
+    
+  case IMR_QUERYCHARPOSITION:
+    {
+      // ずっと IMR_QUERYCHARPOSITION を送ってくる
+#if 1
+      return ::DefWindowProc( hWnd , WM_IME_REQUEST , IMR_QUERYCHARPOSITION , lParam );
+#else
+      if( !lParam ){
+        DebugOutputStatic( "IMR_QUERYCHARPOSITION lParam is nullptr ?" );
+        return 0;
+      }
+      
+      DebugOutputStatic( "w32_imm_wm_ime_request -> IMR_QUERYCHARPOSITION" );
+      IMECHARPOSITION *imecharposition = reinterpret_cast<IMECHARPOSITION*>( lParam );
+      assert( sizeof( IMECHARPOSITION ) == imecharposition->dwSize );
+      if( sizeof( IMECHARPOSITION ) == imecharposition->dwSize ){
+        return 1;
+      }
+      return ::DefWindowProc( hWnd , WM_IME_REQUEST , IMR_QUERYCHARPOSITION , lParam );
+#endif
+    }
   case IMR_RECONVERTSTRING:
     {
-      DebugOutputStatic( "IMR_RECONVERTSTRING" );
+      DebugOutputStatic( "w32_imm_wm_ime_request -> IMR_RECONVERTSTRING" );
       // TODO いまここ作業中
       HIMC hImc = ImmGetContext( hWnd );
       if( hImc ){
         auto reconv_size = ImmGetCompositionStringW( hImc,  GCS_COMPSTR , NULL , 0 );
         {
           std::wstringstream out{};
-          out << "reconversion size " << reconv_size << ", lParam = " << lParam << DEBUG_STRING("");
+          out << "reconversion size " << reconv_size << ", lParam = " << lParam << DEBUG_STRING("") << std::endl;
           OutputDebugStringW( out.str().c_str() );
         }
         ImmReleaseContext( hWnd , hImc );
@@ -312,26 +362,6 @@ w32_imm_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
         }
       }
       break;
-    }
-  case IMR_DOCUMENTFEED:
-    {
-      HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
-      if( communication_window_handle ){
-          OutputDebugStringA( "IMR_DOCUMENTFEED sending proxy message\n");
-        
-          if( SendMessage( communication_window_handle , WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING ,
-                           reinterpret_cast<WPARAM>(hWnd) , 0 ) ){
-          // Wait Conversion Message
-          OutputDebugStringA( "IMR_DOCUMENTFEED waiting message\n");
-          my_wait_message<WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING>( hWnd );
-          return 0;
-        }
-      }
-      break;
-    }
-  case IMR_QUERYCHARPOSITION:
-    {
-      return ::DefWindowProc( hWnd , WM_IME_REQUEST , wParam , lParam );
     }
   default:
     {

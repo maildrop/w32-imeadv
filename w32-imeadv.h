@@ -11,15 +11,16 @@
 #define WM_W32_IMEADV_SUBCLASSIFY                 (WM_W32_IMEADV_START + 1)
 #define WM_W32_IMEADV_UNSUBCLASSIFY               (WM_W32_IMEADV_START + 2)
 #define WM_W32_IMEADV_NOTIFY_SIGNAL_HWND          (WM_W32_IMEADV_START + 3)
-#define WM_W32_IMEADV_OPENSTATUS_OPEN             (WM_W32_IMEADV_START + 4)
-#define WM_W32_IMEADV_OPENSTATUS_CLOSE            (WM_W32_IMEADV_START + 5)
-#define WM_W32_IMEADV_REQUEST_COMPOSITION_FONT    (WM_W32_IMEADV_START + 6)
-#define WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT     (WM_W32_IMEADV_START + 7)
-#define WM_W32_IMEADV_REQUEST_RECONVERSION_STRING (WM_W32_IMEADV_START + 8)
-#define WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING  (WM_W32_IMEADV_START + 9)
-#define WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING (WM_W32_IMEADV_START + 10)
-#define WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING  (WM_W32_IMEADV_START + 11)
-#define WM_W32_IMEADV_END                         (WM_W32_IMEADV_START + 12)
+#define WM_W32_IMEADV_GET_OPENSTATUS              (WM_W32_IMEADV_START + 4)
+#define WM_W32_IMEADV_OPENSTATUS_OPEN             (WM_W32_IMEADV_START + 5)
+#define WM_W32_IMEADV_OPENSTATUS_CLOSE            (WM_W32_IMEADV_START + 6)
+#define WM_W32_IMEADV_REQUEST_COMPOSITION_FONT    (WM_W32_IMEADV_START + 7)
+#define WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT     (WM_W32_IMEADV_START + 8)
+#define WM_W32_IMEADV_REQUEST_RECONVERSION_STRING (WM_W32_IMEADV_START + 9)
+#define WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING  (WM_W32_IMEADV_START + 10)
+#define WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING (WM_W32_IMEADV_START + 11)
+#define WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING  (WM_W32_IMEADV_START + 12)
+#define WM_W32_IMEADV_END                         (WM_W32_IMEADV_START + 13)
 
 /* TOOO check Window Message Last number */
 #if defined(__cplusplus) 
@@ -85,11 +86,11 @@ operator<<( std::wostream& out , const w32_imeadv_composition_font_configure &co
 #define DEBUG_STRING0( exp ) DEBUG_STRING00( exp )
 #endif /* !defined(DEBUG_STRING0) */
 #if !defined( DEBUG_STRING )
-#define DEBUG_STRING( exp ) exp  " (@" __FILE__ ",L." DEBUG_STRING0( __LINE__ ) ")\n"
+#define DEBUG_STRING( exp ) exp  " (@" __FILE__ ",L." DEBUG_STRING0( __LINE__ ) ")"
 #endif /* !defined( DEBUG_STRING ) */
 
 #if !defined( DebugOutputStatic )
-#define DebugOutputStatic( exp ) do{ OutputDebugString( TEXT(DEBUG_STRING( exp )) ); }while( false )
+#define DebugOutputStatic( exp ) do{ OutputDebugString( TEXT(DEBUG_STRING( exp )) TEXT("\n") ); }while( false )
 #endif /* !defined( DebugOutputStatic ) */
 
 /* simple VERIFY macros */

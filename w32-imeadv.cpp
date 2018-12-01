@@ -105,16 +105,18 @@ template<typename emacs_env_t>
 std::wstring 
 my_copy_string_contents( emacs_env_t env, emacs_value value )
 {
-  ptrdiff_t size{0};
-  env->copy_string_contents( env, value , NULL , &size );
-  if( 0 < size ){
-    std::unique_ptr< char[] > buffer{ new (std::nothrow) char[size]{} };
-    if( static_cast<bool>( buffer ) ){
-      env->copy_string_contents( env , value , buffer.get() , &size );
-      std::string const utf8_str( buffer.get() , size );
-      std::wstring result{};
-      if( filesystem_u8_to_wcs( utf8_str , result ) ){
-        return result;
+  ptrdiff_t size{0}; // contains null terminate character. 
+  if( env->copy_string_contents( env, value , NULL , &size ) ){
+    if( 0 < size ){
+      std::unique_ptr< char[] > buffer{ new (std::nothrow) char[size]{} };
+      if( static_cast<bool>( buffer ) ){
+        if( env->copy_string_contents( env , value , buffer.get() , &size ) ){
+          std::string const utf8_str = std::string( buffer.get() );
+          std::wstring result{};
+          if( filesystem_u8_to_wcs( utf8_str , result ) ){
+            return result;
+          }
+        }
       }
     }
   }
@@ -453,6 +455,60 @@ Fw32_imeadv_advertise_ime_composition_font( emacs_env *env,
 }
 
 template<typename emacs_env_t>
+static emacs_value
+Fw32_imeadv__notify_reconversion_string( emacs_env *env,
+                                         ptrdiff_t nargs , emacs_value value[],
+                                         void *data) EMACS_NOEXCEPT
+{
+  emacs_value pos = my_funcall( env , u8"point" );
+  emacs_value begin = my_funcall( env , u8"line-beginning-position");
+  emacs_value end = my_funcall( env , u8"line-end-position" );
+  auto first_half_num = env->extract_integer( env,my_funcall( env , u8"-" , pos , begin ) );
+  auto letter_half_num = env->extract_integer( env, my_funcall( env, u8"-" , end , pos ) );
+  
+  emacs_value first_half = my_funcall( env , u8"buffer-substring-no-properties" ,
+                                       begin , pos );
+  emacs_value letter_half = my_funcall( env , u8"buffer-substring-no-properties",
+                                        pos ,  end );
+  std::wstring first_half_str =
+    ( env->is_not_nil( env,first_half ) ) ? my_copy_string_contents( env , first_half ) : std::wstring{};
+
+  // ちゃんとサロゲートペアを処理しているかどうかのテスト
+  if(first_half_num != static_cast<decltype(first_half_num)>(first_half_str.length()) ){
+    std::wstringstream out{};
+    out << "first half contain surrogate-pair" << " "
+        << first_half_num << " "
+        << static_cast<decltype(first_half_num)>(first_half_str.length()) 
+        << DEBUG_STRING(" ") << std::endl;
+    OutputDebugStringW( out.str().c_str() );
+  }
+  std::wstring letter_half_str =
+    ( env->is_not_nil( env, letter_half )) ? my_copy_string_contents( env , letter_half ) : std::wstring{};
+  if( letter_half_num != static_cast<decltype(letter_half_num)>(letter_half_str.length()) ){
+    std::wstringstream out{};
+    out << "letter half contain surrogate-pair" << " "
+        << letter_half_num << " "
+        << static_cast<decltype(letter_half_num)>(letter_half_str.length() )
+        << DEBUG_STRING(" ") << std::endl;
+    OutputDebugStringW( out.str().c_str() );
+  }
+  
+  {
+    std::string first_half_u8{};
+    if( filesystem_wcs_to_u8( first_half_str , first_half_u8 ) ){
+      message_utf8( env , (std::string(u8"前半: ") + first_half_u8).c_str() );
+    }
+  }
+  {
+    std::string letter_half_u8{};
+    if( filesystem_wcs_to_u8( letter_half_str , letter_half_u8 ) ){
+      message_utf8( env , (std::string(u8"後半: ") + letter_half_u8).c_str() );
+    }
+  }
+  return env->intern( env, u8"nil" );
+}
+
+template<typename emacs_env_t>
 static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
 {
   assert( env );
@@ -557,7 +613,7 @@ static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
 
   fset( env ,
         env->intern( env , u8"w32-imeadv--notify-reconversion-string" ),
-        (env->make_function( env , 0, 0 ,Fw32_imeadv__not_implemented<emacs_env_t>,
+        (env->make_function( env , 0, 0 ,Fw32_imeadv__notify_reconversion_string<emacs_env_t>,
                              u8"IMEから再変換要求がなされたときに呼び出される関数です (まだ作っていない)" , NULL )));
   fset( env,
         env->intern( env , u8"w32-imeadv--notify-documentfeed-string" ),
