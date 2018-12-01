@@ -109,28 +109,30 @@ operator<<( std::wostream& out , const w32_imeadv_composition_font_configure &co
 }
 #endif /* !defined( NDEBUG ) */
 
-template<typename type_t>
-constexpr inline ptrdiff_t
-byte_offset_of(const type_t* base ,const type_t *off )
-{
-  static_assert( 1 == sizeof(const int8_t ) , "1 == sizeof( int8_t )" );
-  return (static_cast<const int8_t*>( static_cast<const void*>( off ))
-          - static_cast<const int8_t*>( static_cast<const void*>( base )));
-}
-
-inline const char16_t*
-advance_consider_surroagexo( const char16_t * p , size_t i){
-  for( size_t j = 0 ; j < i && *p != L'\0' ; ++j, ++p ){
-    if( ( 0xd800 <= *p && *p < 0xdc00 ) /* High Surrogate */ ){
-      if( (0xdc00 <= *(p+1) && *(p+1) < 0xE000 ) /* Low Surroage */ ){
-        ++p;
-      }else{
-        // illegal encoding 
+namespace imeadv{
+  template<typename type_t>
+  constexpr inline ptrdiff_t
+  byte_offset_of(const type_t* base ,const type_t *off )
+  {
+    static_assert( 1 == sizeof(const int8_t ) , "1 == sizeof( int8_t )" );
+    return (static_cast<const int8_t*>( static_cast<const void*>( off ))
+            - static_cast<const int8_t*>( static_cast<const void*>( base )));
+  }
+  
+  inline const char16_t*
+  advance_consider_surroagexo( const char16_t * p , size_t i){
+    for( size_t j = 0 ; j < i && *p != L'\0' ; ++j, ++p ){
+      if( ( 0xd800 <= *p && *p < 0xdc00 ) /* High Surrogate */ ){
+        if( (0xdc00 <= *(p+1) && *(p+1) < 0xE000 ) /* Low Surroage */ ){
+          ++p;
+        }else{
+          // illegal encoding 
+        }
       }
     }
+    return p;
   }
-  return p;
-}
+} /* end of namespace imeadv */
 
 #endif /* defined( __cplusplus ) */
 
