@@ -57,24 +57,6 @@ extern "C"{
 }
 #endif /* defined( __cplusplus ) */
 
-#if defined( __cplusplus )
-#if !defined( NDEBUG )
-inline 
-std::wostream&
-operator<<( std::wostream& out , const w32_imeadv_composition_font_configure &config )
-{
-  out << L"w32_imeadv_composition_font_configure{" ;
-  if( config.enable_bits & W32_IME_FONT_CONFIGURE_BIT_FACENAME ){
-    out << L" family: \"" << config.lfFaceName <<  L"\", ";
-  }
-  if( config.enable_bits & W32_IME_FONT_CONFIGURE_BIT_FONTHEIGHT ){
-    out << L" height: " << config.font_height << L", ";
-  }
-  out << L"}; ";
-  return out;
-}
-#endif /* !defined( NDEBUG ) */
-#endif /* defined( __cplusplus ) */
 
 /** 
     Debug macros.
@@ -105,6 +87,53 @@ operator<<( std::wostream& out , const w32_imeadv_composition_font_configure &co
 #define VERIFY( exp ) do{ assert( exp ); }while( false )
 # endif /* defined( NDEBUG ) */
 #endif /* !defined( VERIFY ) */
+
+
+
+#if defined( __cplusplus )
+
+#if !defined( NDEBUG )
+inline 
+std::wostream&
+operator<<( std::wostream& out , const w32_imeadv_composition_font_configure &config )
+{
+  out << L"w32_imeadv_composition_font_configure{" ;
+  if( config.enable_bits & W32_IME_FONT_CONFIGURE_BIT_FACENAME ){
+    out << L" family: \"" << config.lfFaceName <<  L"\", ";
+  }
+  if( config.enable_bits & W32_IME_FONT_CONFIGURE_BIT_FONTHEIGHT ){
+    out << L" height: " << config.font_height << L", ";
+  }
+  out << L"}; ";
+  return out;
+}
+#endif /* !defined( NDEBUG ) */
+
+template<typename type_t>
+constexpr inline ptrdiff_t
+byte_offset_of(const type_t* base ,const type_t *off )
+{
+  static_assert( 1 == sizeof(const int8_t ) , "1 == sizeof( int8_t )" );
+  return (static_cast<const int8_t*>( static_cast<const void*>( off ))
+          - static_cast<const int8_t*>( static_cast<const void*>( base )));
+}
+
+inline const char16_t*
+advance_consider_surroagexo( const char16_t * p , size_t i){
+  for( size_t j = 0 ; j < i && *p != L'\0' ; ++j, ++p ){
+    if( ( 0xd800 <= *p && *p < 0xdc00 ) /* High Surrogate */ ){
+      if( (0xdc00 <= *(p+1) && *(p+1) < 0xE000 ) /* Low Surroage */ ){
+        ++p;
+      }else{
+        // illegal encoding 
+      }
+    }
+  }
+  return p;
+}
+
+#endif /* defined( __cplusplus ) */
+
 
 #endif /* !defined( W32_IMEADV_H_HEADER_GUARD_69b36924_1b02_4782_bf0b_b8c02d62065a ) */
 
