@@ -280,7 +280,7 @@ Fw32_imeadv__default_message_input_handler ( emacs_env* env ,
           // ===========================================
           // TODO いまここ 再変換用の文字列を送るところ
           // ===========================================
-          OutputDebugStringA(" dispatch reconversion string\n");
+          DebugOutputStatic(" dispatch reconversion string");
           if( !env->is_not_nil( env , my_funcall( env , u8"w32-imeadv--notify-reconversion-string") )){
             const HWND hWnd = w32_imeadv::get_communication_HWND() ;
             if( hWnd && IsWindow( hWnd )){
@@ -293,7 +293,7 @@ Fw32_imeadv__default_message_input_handler ( emacs_env* env ,
           }
           break;
         case 'D': // Document Feed
-          OutputDebugStringA(" dispatch documentfeed string\n");
+          DebugOutputStatic( " dispatch documentfeed string");
           if( !env->is_not_nil( env , my_funcall( env , u8"w32-imeadv--notify-documentfeed-string") )){
             const HWND hWnd = w32_imeadv::get_communication_HWND() ;
             if( hWnd && IsWindow( hWnd ) ){
@@ -302,6 +302,27 @@ Fw32_imeadv__default_message_input_handler ( emacs_env* env ,
               message_utf8( env,
                             std::string{u8"w32_imeadv::get_communication_HWND() return NULL. "
                                 "You should wait 5 sec. (WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING)" });
+            }
+          }
+          break;
+        case 'b':
+          DebugOutputStatic( " backward-char" );
+          {
+            my_funcall( env, u8"backward-char" );
+          }
+          break;
+        case 'd':
+          DebugOutputStatic( " delete-char" );
+          {
+            my_funcall( env, u8"delete-char", env->make_integer( env, 1 ) , env->intern( env, u8"nil" )  );
+          }
+          break;
+        case '!':
+          DebugOutputStatic(" characteristic Events" );
+          {
+            HWND const hWnd = w32_imeadv::get_communication_HWND();
+            if( hWnd && IsWindow( hWnd ) ){
+              
             }
           }
           break;
@@ -416,7 +437,7 @@ Fw32_imeadv_advertise_ime_composition_font( emacs_env *env,
                 font_configure.lfFaceName[i] = L'\0'; // fill by terminate character
               }
             }
-            font_configure.enable_bits |= W32_IME_FONT_CONFIGURE_BIT_FACENAME;
+            font_configure.enable_bits |= W32_IMEADV_FONT_CONFIGURE_BIT_FACENAME;
           }
         }
 
@@ -424,7 +445,7 @@ Fw32_imeadv_advertise_ime_composition_font( emacs_env *env,
         if( env->is_not_nil( env, height ) ){
           auto font_height = env->extract_integer( env, height );
           font_configure.font_height = static_cast<decltype( font_configure.font_height )>( font_height );
-          font_configure.enable_bits |= W32_IME_FONT_CONFIGURE_BIT_FONTHEIGHT;
+          font_configure.enable_bits |= W32_IMEADV_FONT_CONFIGURE_BIT_FONTHEIGHT;
         }
 
 #if !defined(NDEBUG)

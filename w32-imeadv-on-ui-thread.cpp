@@ -3,6 +3,8 @@
 #include <imm.h>
 #include <commctrl.h>
 
+#include <type_traits>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -306,7 +308,6 @@ w32_imm_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
       DebugOutputStatic( "w32_imm_wm_ime_request -> IMR_DOCUMENTFEED" );
       HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
       if( communication_window_handle ){
-
         
           if( SendMessageW( communication_window_handle , WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING ,
                            reinterpret_cast<WPARAM>(hWnd) , 0 ) ){
@@ -338,6 +339,7 @@ w32_imm_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
       return ::DefWindowProc( hWnd , WM_IME_REQUEST , IMR_QUERYCHARPOSITION , lParam );
 #endif
     }
+    
   case IMR_RECONVERTSTRING:
     {
       DebugOutputStatic( "w32_imm_wm_ime_request -> IMR_RECONVERTSTRING" );
@@ -412,47 +414,96 @@ w32_imm_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
               wchar_t comp_str[0];
             };
             {
-              std::vector<BYTE> memory_block((sizeof( RECONVERTSTRING )+(sizeof(wchar_t)*(refData.nSize + 1))),0);
-              static_assert( 1 == sizeof( decltype(memory_block)::value_type ) ,
-                             "1 == sizeof( decltype(memory_block)::value_type ) " );
-              myReconversionW* ptr = static_cast<myReconversionW*>(static_cast<void*>(memory_block.data()));
-              ptr->reconvertstring.dwSize = memory_block.size() * sizeof(decltype( memory_block )::value_type);
-              ptr->reconvertstring.dwVersion = 0;
-              ptr->reconvertstring.dwStrLen = refData.nSize + 1;
-              ptr->reconvertstring.dwStrOffset = sizeof( RECONVERTSTRING );
-              ptr->reconvertstring.dwCompStrLen = 0;
-              ptr->reconvertstring.dwCompStrOffset = refData.dwComStrOffset;
-              ptr->reconvertstring.dwTargetStrLen = 0;
-              ptr->reconvertstring.dwTargetStrOffset = refData.dwComStrOffset; // dwCompStrOffset + ( dwComStrLen * sizeof( wchar_t ) == dwCompStrOffset;
+              static_assert( std::is_standard_layout<myReconversionW>::value ,
+                             "std::is_standard_layout<myReconversionW>::value" );
+              static_assert( offsetof( myReconversionW,comp_str ) == sizeof( RECONVERTSTRING ) ,
+                             "offsetof( myReconversionW,comp_str ) == sizeof( RECONVERTSTRING )" );
 
-              std::copy( refData.text.c_str() , refData.text.c_str() + refData.text.size() +1 ,
-                         ptr->comp_str );
+              std::vector<BYTE> memory_block( (sizeof( RECONVERTSTRING ) + ( sizeof(wchar_t)* (refData.nSize+1) )) ,0);
+              myReconversionW* const ptr = reinterpret_cast<myReconversionW*>(memory_block.data());
+              
+              {
+                /* 今 sizeof( decltype( memory_block )::value_type つまり sizeof( BYTE )  は必ず 1 */ 
+                static_assert( 1 == sizeof( decltype(memory_block)::value_type ) ,
+                               "1 == sizeof( decltype(memory_block)::value_type ) " );
+                
+                ptr->reconvertstring.dwSize = memory_block.size();
+                ptr->reconvertstring.dwVersion = 0;
+                ptr->reconvertstring.dwStrLen = refData.nSize;
+                ptr->reconvertstring.dwStrOffset = offsetof( myReconversionW,comp_str );
+                ptr->reconvertstring.dwCompStrLen = 0;
+                ptr->reconvertstring.dwCompStrOffset = refData.dwComStrOffset;
+                ptr->reconvertstring.dwTargetStrLen = 0;
+                ptr->reconvertstring.dwTargetStrOffset = refData.dwComStrOffset; // dwCompStrOffset + ( dwComStrLen * sizeof( wchar_t ) == dwCompStrOffset;
+
+                std::copy( refData.text.c_str() , refData.text.c_str() + refData.text.size() +1 ,
+                           ptr->comp_str );
+                assert( L'\0' == ptr->comp_str[ refData.text.size() ] );
+              }
+
+              // これで、今正しいRECONVERTSTRING構造体が出来たので、このRECONVERTSTRINGを使って
+              // ImmSetCompositionStringW()を呼び出す。
+              // MS-IME はこれで再変換ができるのであるが、
+              // ATOK はこれではだめ dwComStrOffset == 0 となる文章は受け付けない。
+              // また、 ATOKはこの時点では、SCS_SETSTR も受け付けない。
+              // カーソル位置の処理の都合なのかな（ point の前にあるので ）
+              
               HIMC hImc = ImmGetContext( hWnd );
               if( hImc ){
-                if( ImmSetCompositionStringW( hImc ,
-                                              SCS_QUERYRECONVERTSTRING ,
-                                              reinterpret_cast<LPVOID>( ptr ),
-                                              memory_block.size() * sizeof( decltype( memory_block )::value_type ),
-                                              nullptr , 0 ) ){
-                  std::wstringstream out{};
-                  out << L"オフセット" << ptr->reconvertstring.dwCompStrOffset << L"バイト目から"
-                      << ptr->reconvertstring.dwCompStrLen << L"(WideChar単位であってサロゲートペア考慮無し）文字,"
-                      << DEBUG_STRING(L"SCS_QUERYRECONVERTSTRING の結果を見ます") << std::endl;
-                  OutputDebugStringW( out.str().c_str() );
-                  // これで今正しい RECONVERTSTRING が出来たので、これをいれるのであるが、
-                  // MS-IME はこれで正しい挙動であるが、ATOK はこれではだめ
-                  
-                  if( ImmSetCompositionStringW( hImc, SCS_SETRECONVERTSTRING,
-                                                reinterpret_cast<LPVOID>(ptr),
-                                                memory_block.size() * sizeof( decltype( memory_block )::value_type ),
-                                                nullptr,  0 ) ){
-                    DebugOutputStatic( "success" );
-                  }else{
-                    DebugOutputStatic( "fail" ); // TODO : いまここ 
+                do{
+                  {
+                    std::wstringstream out{};
+                    out << L"問い合わせ前 "
+                        << ptr->reconvertstring.dwVersion << "," << ptr->reconvertstring.dwStrOffset << " "
+                        << L"オフセット dwStrOfset=" << ptr->reconvertstring.dwStrOffset <<","
+                        << L"dwStrLen=" << ptr->reconvertstring.dwStrLen << " "
+                        << ptr->reconvertstring.dwCompStrOffset << L"バイト目から"
+                        << ptr->reconvertstring.dwCompStrLen << L"(WideChar単位であってサロゲートペア考慮無し）文字,"
+                        << L"(" << ptr->reconvertstring.dwTargetStrLen << L","
+                        << ptr->reconvertstring.dwTargetStrOffset << L")"
+                        << DEBUG_STRING(L"SCS_QUERYRECONVERTSTRING の結果を見ます") << std::endl;
+                    OutputDebugStringW( out.str().c_str() );
                   }
-                }else{
-                  DebugOutputStatic( "fail" );
-                }
+
+                  if(! ImmSetCompositionStringW( hImc ,
+                                                 SCS_QUERYRECONVERTSTRING ,
+                                                 reinterpret_cast<LPVOID>( ptr ),
+                                                 memory_block.size() * sizeof( decltype( memory_block )::value_type ),
+                                                 nullptr , 0 ) ){
+                    DebugOutputStatic( "SCS_QUERYRECONVERTSTRING fail" );
+                    break;
+                  }
+
+                  {
+                    std::wstringstream out{};
+                    out << L"問い合わせ後 "
+                        << ptr->reconvertstring.dwVersion << "," << ptr->reconvertstring.dwStrOffset << " "
+                        << L"オフセット dwStrOfset=" << ptr->reconvertstring.dwStrOffset <<","
+                        << L"dwStrLen=" << ptr->reconvertstring.dwStrLen << " "
+                        << ptr->reconvertstring.dwCompStrOffset << L"バイト目から"
+                        << ptr->reconvertstring.dwCompStrLen << L"(WideChar単位であってサロゲートペア考慮無し）文字,"
+                        << L"(" << ptr->reconvertstring.dwTargetStrLen << L","
+                        << ptr->reconvertstring.dwTargetStrOffset << L")"
+                        << DEBUG_STRING(L"SCS_QUERYRECONVERTSTRING の結果を見ます") << std::endl;
+                    OutputDebugStringW( out.str().c_str() );
+                  }
+
+                  // ATOK は、 dwCompStrOffset == 0 の時のみ失敗する。 どういうこと？
+                  if( ! ImmSetCompositionStringW( hImc,
+                                                  SCS_SETRECONVERTSTRING,
+                                                  reinterpret_cast<LPVOID>(ptr),
+                                                  memory_block.size() * sizeof( decltype( memory_block )::value_type ),
+                                                  nullptr, 0 ) ) {
+                    std::wstringstream out{};
+                    out << ptr->reconvertstring.dwCompStrOffset
+                        << DEBUG_STRING(L" SCS_SETRECONVERTSTRING fail") <<std::endl;
+                    OutputDebugStringW( out.str().c_str() );
+                    break;
+                  }
+                  
+                  // ここで成功したら、またワンショットサブクラスを使って、やる？ ダメじゃね？
+                  DebugOutputStatic( "success" );
+                }while( false );
                 ImmReleaseContext( hWnd , hImc );
               }
             }
@@ -606,11 +657,11 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
           if( hImc ){
             LOGFONTW logFont = {0};
             if( ImmGetCompositionFontW( hImc , &logFont ) ){
-              if( font_configure->enable_bits & W32_IME_FONT_CONFIGURE_BIT_FACENAME ){
+              if( font_configure->enable_bits & W32_IMEADV_FONT_CONFIGURE_BIT_FACENAME ){
                 std::copy( std::begin( font_configure->lfFaceName ) , std::end( font_configure->lfFaceName ) ,
                            &(logFont.lfFaceName[0]) );
               }
-              if( font_configure->enable_bits & W32_IME_FONT_CONFIGURE_BIT_FONTHEIGHT ){
+              if( font_configure->enable_bits & W32_IMEADV_FONT_CONFIGURE_BIT_FONTHEIGHT ){
                 const double point_size = static_cast<double>(font_configure->font_height) / 10.0f ;
                 logFont.lfHeight =
                   static_cast<LONG>(-(point_size *

@@ -43,6 +43,10 @@ static LRESULT
     return notify_output( 'D' );
   case WM_W32_IMEADV_REQUEST_COMPOSITION_FONT:
     return notify_output( 'F' );
+  case WM_W32_IMEADV_REQUEST_BACKWARD_CHAR:
+    return notify_output( 'b' );
+  case WM_W32_IMEADV_REQUEST_DELETE_CHAR:
+    return notify_output( 'd' );
   default:
     break;
   }

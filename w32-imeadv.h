@@ -20,7 +20,11 @@
 #define WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING  (WM_W32_IMEADV_START + 10)
 #define WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING (WM_W32_IMEADV_START + 11)
 #define WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING  (WM_W32_IMEADV_START + 12)
-#define WM_W32_IMEADV_END                         (WM_W32_IMEADV_START + 13)
+
+#define WM_W32_IMEADV_REQUEST_BACKWARD_CHAR       (WM_W32_IMEADV_START + 20) // 後で順番変えるよ
+#define WM_W32_IMEADV_REQUEST_DELETE_CHAR         (WM_W32_IMEADV_START + 21) // 後で順番変えるよ
+
+#define WM_W32_IMEADV_END                         (WM_W32_IMEADV_START + 22)
 
 /* TOOO check Window Message Last number */
 #if defined(__cplusplus) 
@@ -32,11 +36,11 @@ extern "C"{
 #endif /* defined( __cplusplus ) */
 
   enum W32_IMEADV_COMPOSITION_FONT_CONFIGURE_BITS{
-    W32_IME_FONT_CONFIGURE_BIT_FACENAME   = (1 << 0),
-    W32_IME_FONT_CONFIGURE_BIT_FONTHEIGHT = (1 << 1),
-    W32_IME_FONT_CONFIGURE_BIT_STRIKEOUT  = (1 << 2),
-    W32_IME_FONT_CONFIGURE_BIT_UNDERLINE  = (1 << 3),
-    W32_IME_FONT_CONFIGURE_BIT_ITALIC     = (1 << 4),
+    W32_IMEADV_FONT_CONFIGURE_BIT_FACENAME   = (1 << 0),
+    W32_IMEADV_FONT_CONFIGURE_BIT_FONTHEIGHT = (1 << 1),
+    W32_IMEADV_FONT_CONFIGURE_BIT_STRIKEOUT  = (1 << 2),
+    W32_IMEADV_FONT_CONFIGURE_BIT_UNDERLINE  = (1 << 3),
+    W32_IMEADV_FONT_CONFIGURE_BIT_ITALIC     = (1 << 4),
   };
   
   struct w32_imeadv_composition_font_configure{
@@ -48,6 +52,18 @@ extern "C"{
     wchar_t       lfFaceName[ LF_FACESIZE ]; // important ! wide char 
   };
 
+  /* WM_W32_IMEADV_REQUEST_BACKWARD_CHAR */
+  struct w32_imeadv_request_backward_char_lparam{
+    HWND hWnd; // request ui window handle
+    size_t num;
+  };
+  
+  /* WM_W32_IMEADV_REQUEST_DELETE_CHAR */
+  struct w32_imeadv_request_delete_cahr_lparam{
+    HWND hWnd; // request ui window handle
+    size_t num;
+  };
+  
   /* UI thread subclasss proc */
   LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM lParam ,
                                     UINT_PTR uIdSubclass, DWORD_PTR dwRefData );
@@ -98,10 +114,10 @@ std::wostream&
 operator<<( std::wostream& out , const w32_imeadv_composition_font_configure &config )
 {
   out << L"w32_imeadv_composition_font_configure{" ;
-  if( config.enable_bits & W32_IME_FONT_CONFIGURE_BIT_FACENAME ){
+  if( config.enable_bits & W32_IMEADV_FONT_CONFIGURE_BIT_FACENAME ){
     out << L" family: \"" << config.lfFaceName <<  L"\", ";
   }
-  if( config.enable_bits & W32_IME_FONT_CONFIGURE_BIT_FONTHEIGHT ){
+  if( config.enable_bits & W32_IMEADV_FONT_CONFIGURE_BIT_FONTHEIGHT ){
     out << L" height: " << config.font_height << L", ";
   }
   out << L"}; ";
