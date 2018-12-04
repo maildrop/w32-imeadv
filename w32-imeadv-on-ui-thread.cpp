@@ -20,8 +20,6 @@
 
 #include "w32-imeadv.h"
 
-#define W32_IMEADV_RECONVERTSTRING "W32_IMEADV_RECONVERTSTRING"
-
 template<UINT WaitMessage , DWORD dwTimeOutMillSecond = 5000 /* 5 sec timout (for safity) */> static inline BOOL 
 my_wait_message( HWND hWnd , DWORD times = 1u);
 
