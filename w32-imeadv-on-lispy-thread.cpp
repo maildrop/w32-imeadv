@@ -41,8 +41,6 @@ static LRESULT
 w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
                                               HWND hWnd, UINT uMsg , WPARAM wParam , LPARAM lParam )
 {
-  DebugOutputStatic( "w32_imeadv_lispy_communication_wnd_proc_impl" );
-
   if( WM_W32_IMEADV_SUBCLASSIFY == uMsg ){
     DebugOutputStatic("w32_imeadv_lispy_communication_wnd_proc_impl WM_W32_IMEADV_SUBCLASSIFY message" );
     return 0;
@@ -100,14 +98,13 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
       /* いま、これは二種類の状況があって、
        一つは、S式からの関数の呼び出しもう一つは、 request_composition_font からの呼び出し  wParam が ゼロかどうかを見るのが
        手段である。*/
-      DebugOutputStatic("WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT");
+      //DebugOutputStatic("WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT");
       if( user_data_ptr ){
         std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
         if( wParam ){
           HWND response_wnd = reinterpret_cast<HWND>( wParam );
           return SendMessageW( response_wnd , WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT , wParam , lParam );
         }else{
-          assert( 1 == user_data_ptr->request_queue.size() ); // ここか。これがいかんのか
           if( !user_data_ptr->request_queue.empty() ){
             HWND response_wnd = user_data_ptr->request_queue.front();
             user_data_ptr->request_queue.pop();
@@ -132,7 +129,6 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
           assert( NULL != response_wnd ); // この assert は絶対に引っかからない なぜならば wParam が NULL ではないから
           return SendMessageW( response_wnd , WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING , wParam , lParam );
         }else{
-          assert( 1 == user_data_ptr->request_queue.size() );
           if( !user_data_ptr->request_queue.empty() ){
             HWND const response_wnd = user_data_ptr->request_queue.front();
             user_data_ptr->request_queue.pop();
@@ -158,7 +154,6 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
           assert( NULL != response_wnd ); // この assert は絶対に引っかからない なぜならば wParam が NULL ではないから
           return SendMessageW( response_wnd , WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING , wParam , lParam );
         }else{
-          assert( 1 == user_data_ptr->request_queue.size() );
           if( !user_data_ptr->request_queue.empty() ){
             HWND response_wnd = user_data_ptr->request_queue.front();
             user_data_ptr->request_queue.pop();
@@ -175,7 +170,7 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
     {
       if( user_data_ptr ){
         std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
-        assert( user_data_ptr->request_queue.empty() );
+
         if( user_data_ptr->signal_window ){
           auto send_message_result =
             SendMessage( user_data_ptr->signal_window , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT , wParam, lParam );
@@ -192,7 +187,7 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
     {
       if( user_data_ptr ){
         std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
-        assert( user_data_ptr->request_queue.empty() );
+
         if( user_data_ptr->signal_window ){
           auto send_message_result =
             SendMessage( user_data_ptr->signal_window , WM_W32_IMEADV_REQUEST_RECONVERSION_STRING, wParam ,lParam );
@@ -221,6 +216,50 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
     }
     return 0;
 
+  case WM_W32_IMEADV_NOTIFY_BACKWARD_CHAR:
+    {
+      if( user_data_ptr ){
+        std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
+        if( wParam ){
+          HWND response_wnd = reinterpret_cast<HWND>( wParam );
+          assert( NULL != response_wnd ); // この assert は絶対に引っかからない なぜならば wParam が NULL ではないから
+          return SendMessageW( response_wnd , WM_W32_IMEADV_NOTIFY_BACKWARD_CHAR , wParam , lParam );
+        }else{
+
+          if( !user_data_ptr->request_queue.empty() ){
+            HWND response_wnd = user_data_ptr->request_queue.front();
+            user_data_ptr->request_queue.pop();
+            if( response_wnd ){
+              return SendMessageW( response_wnd , WM_W32_IMEADV_NOTIFY_BACKWARD_CHAR, wParam, lParam );
+            }
+          }
+        }
+      }
+    }
+    return 0;
+    
+  case WM_W32_IMEADV_NOTIFY_DELETE_CHAR:
+    {
+      if( user_data_ptr ){
+        std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
+        if( wParam ){
+          HWND response_wnd = reinterpret_cast<HWND>( wParam );
+          assert( NULL != response_wnd ); // この assert は絶対に引っかからない なぜならば wParam が NULL ではないから
+          return SendMessageW( response_wnd , WM_W32_IMEADV_NOTIFY_DELETE_CHAR , wParam , lParam );
+        }else{
+
+          if( !user_data_ptr->request_queue.empty() ){
+            HWND response_wnd = user_data_ptr->request_queue.front();
+            user_data_ptr->request_queue.pop();
+            if( response_wnd ){
+              return SendMessageW( response_wnd , WM_W32_IMEADV_NOTIFY_DELETE_CHAR, wParam, lParam );
+            }
+          }
+        }
+      }
+    }
+    return 0;
+    
   case WM_W32_IMEADV_REQUEST_BACKWARD_CHAR:
     {
       DebugOutputStatic( "WM_W32_IMEADV_REQUEST_BACKWARD_CHAR");
@@ -233,9 +272,14 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
           if( reinterpret_cast<HWND>( wParam ) == w32_imeadv_request_backward_char->hWnd  ){
             size_t j = 0; 
             for(size_t i = 0 ; i < w32_imeadv_request_backward_char->num ; ++i ){
-              j += !!(SendMessage( user_data_ptr->signal_window ,
-                                   WM_W32_IMEADV_REQUEST_BACKWARD_CHAR ,
-                                   wParam, lParam ));
+              auto send_message_result =
+                SendMessage( user_data_ptr->signal_window ,
+                             WM_W32_IMEADV_REQUEST_BACKWARD_CHAR ,
+                             wParam, lParam );
+              j += !!(send_message_result);
+              if( send_message_result ){
+                user_data_ptr->request_queue.push( w32_imeadv_request_backward_char->hWnd );
+              }
             }
             return j;
           }
@@ -253,13 +297,18 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
             reinterpret_cast<w32_imeadv_request_delete_char_lparam*>( lParam );
           assert( reinterpret_cast<HWND>( wParam ) == w32_imeadv_request_delete_char->hWnd );
           if( reinterpret_cast<HWND>( wParam ) == w32_imeadv_request_delete_char->hWnd ){
-            size_t i = 0;
-            for( ; i < w32_imeadv_request_delete_char->num ; ++i ){
-              SendMessage( user_data_ptr->signal_window ,
-                           WM_W32_IMEADV_REQUEST_DELETE_CHAR ,
-                           0, 0 );
+            size_t j = 0;
+            for( size_t i = 0; i < w32_imeadv_request_delete_char->num ; ++i ){
+              auto send_message_result = 
+                SendMessage( user_data_ptr->signal_window ,
+                             WM_W32_IMEADV_REQUEST_DELETE_CHAR ,
+                             0, 0 );
+              j+= !!(send_message_result);
+              if( send_message_result ){
+                user_data_ptr->request_queue.push( w32_imeadv_request_delete_char->hWnd );
+              }
             }
-            return i;
+            return j;
           }
         }
       }
@@ -353,9 +402,6 @@ BOOL w32_imeadv::finalize()
 /* get communication Window Handle without lock */
 HWND& w32_imeadv::implements::get_communication_HWND_impl()
 {
-  OutputDebugStringA( user_data.communication_window_handle ?
-                      "user_data.communication_window_handle have":
-                      "user_data.communication_window_handle nil" );
   if( !IsWindow( user_data.communication_window_handle ) ){
     // The window was closed. 
     // I will decide to set communication_window_handle is NULL 

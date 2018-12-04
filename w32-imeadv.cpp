@@ -4,7 +4,6 @@
    わかっていたけどすげー難しい。
 
    TODO:: 未実装の Lisp 関数
-    - "w32-imeadv--notify-reconversion-string" 
     - "w32-imeadv--notify-documentfeed-string"
    emacs_env_25 のメンバーは、emacs_env* つまりemacs_env_26 を引数にとるのであるが本当にそれでいいのか？
 */
@@ -308,12 +307,19 @@ Fw32_imeadv__default_message_input_handler ( emacs_env* env ,
         case 'b':
           {
             my_funcall( env, u8"backward-char" );
+            const HWND hWnd = w32_imeadv::get_communication_HWND();
+            if( hWnd && IsWindow( hWnd ) ){
+              SendMessage( hWnd, WM_W32_IMEADV_NOTIFY_BACKWARD_CHAR , 0 , 0 );
+            }
           }
           break;
         case 'd':
-          DebugOutputStatic( " delete-char" );
           {
             my_funcall( env, u8"delete-char", env->make_integer( env, 1 ) , env->intern( env, u8"nil" )  );
+            const HWND hWnd = w32_imeadv::get_communication_HWND();
+            if( hWnd && IsWindow( hWnd )){
+              SendMessage( hWnd, WM_W32_IMEADV_NOTIFY_DELETE_CHAR , 0 , 0 );
+            }
           }
           break;
         case '!':
@@ -447,13 +453,6 @@ Fw32_imeadv_advertise_ime_composition_font( emacs_env *env,
           font_configure.enable_bits |= W32_IMEADV_FONT_CONFIGURE_BIT_FONTHEIGHT;
         }
 
-#if !defined(NDEBUG)
-        {
-          std::wstringstream out{};
-          out << font_configure << std::endl;
-          OutputDebugStringW( out.str().c_str() );
-        }
-#endif /* !defined(NDEBUG) */
         if( SendMessage(w32_imeadv::get_communication_HWND() ,
                         WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT ,
                         wParam , reinterpret_cast<LPARAM>(&font_configure) ) )
@@ -527,20 +526,6 @@ Fw32_imeadv__notify_reconversion_string( emacs_env *env,
     OutputDebugStringW( out.str().c_str() );
   }
 
-#if !defined( NDEBUG )
-  {
-    std::string first_half_u8{};
-    if( filesystem_wcs_to_u8( first_half_str , first_half_u8 ) ){
-      message_utf8( env , (std::string(u8"前半: ") + first_half_u8).c_str() );
-    }
-  }
-  {
-    std::string later_half_u8{};
-    if( filesystem_wcs_to_u8( later_half_str , later_half_u8 ) ){
-      message_utf8( env , (std::string(u8"後半: ") + later_half_u8).c_str() );
-    }
-  }
-#endif /* !defined( NDEBUG ) */
   {
     const HWND hWnd = w32_imeadv::get_communication_HWND();
     if( hWnd && IsWindow( hWnd ) ){
@@ -658,7 +643,7 @@ static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
   fset( env ,
         env->intern( env , u8"w32-imeadv--notify-reconversion-string" ),
         (env->make_function( env , 0, 0 ,Fw32_imeadv__notify_reconversion_string<emacs_env_t>,
-                             u8"IMEから再変換要求がなされたときに呼び出される関数です (まだ作っていない)" , NULL )));
+                             u8"IMEから再変換要求がなされたときに呼び出される関数です" , NULL )));
   fset( env,
         env->intern( env , u8"w32-imeadv--notify-documentfeed-string" ),
         (env->make_function( env , 0 , 0,Fw32_imeadv__not_implemented<emacs_env_t>,

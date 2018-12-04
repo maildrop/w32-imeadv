@@ -21,10 +21,14 @@
 #define WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING (WM_W32_IMEADV_START + 11)
 #define WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING  (WM_W32_IMEADV_START + 12)
 
-#define WM_W32_IMEADV_REQUEST_BACKWARD_CHAR       (WM_W32_IMEADV_START + 20) // 後で順番変えるよ
-#define WM_W32_IMEADV_REQUEST_DELETE_CHAR         (WM_W32_IMEADV_START + 21) // 後で順番変えるよ
+#define WM_w32_IMEADV_UI_PERFORM_RECONVERSION     (WM_W32_IMEADV_START + 13)
 
-#define WM_W32_IMEADV_END                         (WM_W32_IMEADV_START + 22)
+#define WM_W32_IMEADV_REQUEST_BACKWARD_CHAR       (WM_W32_IMEADV_START + 20) 
+#define WM_W32_IMEADV_NOTIFY_BACKWARD_CHAR        (WM_W32_IMEADV_START + 21) 
+#define WM_W32_IMEADV_REQUEST_DELETE_CHAR         (WM_W32_IMEADV_START + 22) 
+#define WM_W32_IMEADV_NOTIFY_DELETE_CHAR          (WM_W32_IMEADV_START + 23) 
+
+#define WM_W32_IMEADV_END                         (WM_W32_IMEADV_START + 24)
 
 /* TOOO check Window Message Last number */
 #if defined(__cplusplus) 
@@ -109,6 +113,7 @@ extern "C"{
 #if defined( __cplusplus )
 
 #if !defined( NDEBUG )
+
 inline 
 std::wostream&
 operator<<( std::wostream& out , const w32_imeadv_composition_font_configure &config )
@@ -123,6 +128,7 @@ operator<<( std::wostream& out , const w32_imeadv_composition_font_configure &co
   out << L"}; ";
   return out;
 }
+
 #endif /* !defined( NDEBUG ) */
 
 namespace imeadv{
