@@ -16,9 +16,14 @@ IMM32 dynamic module for Emacs on Windows
  これまでは、再変換とDocumentFeedの二つの機能は、UI スレッドから、Lispスレッドの変数にアクセスするために（GCと衝突してよく終了していたが）これをS式経由で制御できるようになりそうなので、もう少し安定化と高機能化が図れそうである。
 
 # 注意
+
 まだ、abort の可能性があります。
+
 まだ、デットロックの可能性が排除しきれていない。
+
 - デットロック解除用に 5sec 閾値のタイムアウトを設定しているので、画面がフリーズしたと思ったら、IME制御の状態がおかしくなっているとご理解ください。その場合、できるだけ早くセーブ終了をして作業結果の保全をお願いします。
+
+異字体セレクタがまだ実装できていません。
 
 ## TODO
 - 再変換機能ののコード追加
@@ -26,6 +31,7 @@ IMM32 dynamic module for Emacs on Windows
 - 開いた・閉じたの通知は来るので、mode line をアップデートするように lisp コードを書くこと
 - emacs-imm32-input-proxy.exe を rundll32.exe を使って、dll として導入を図ること。
 （そうすれば普通に単一のdllファイルで、w32-imeadv.dll だけで処理できるようになる）
+- 異字体セレクタを考慮すること
 - 本体のemacs.exe が異常終了したときに、emacs-imm32-input-proxy.exe が残ってしまうので、emacs.exe のプロセスハンドルを開いてMsgWaitForMultipleObjectsで待つように変更すること。
 - 互換用の w32-ime.el の作成 （これは Lisp に精通する必要があるので遅れる）
 - daemon mode で立ち上げた場合に、どうするのかを考える（これは後回し）
