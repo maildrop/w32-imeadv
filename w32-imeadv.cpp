@@ -306,7 +306,6 @@ Fw32_imeadv__default_message_input_handler ( emacs_env* env ,
           }
           break;
         case 'b':
-          DebugOutputStatic( " backward-char" );
           {
             my_funcall( env, u8"backward-char" );
           }
