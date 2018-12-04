@@ -249,12 +249,12 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
       if( user_data_ptr ){
         std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
         if( lParam ){
-          w32_imeadv_request_delete_cahr_lparam * w32_imeadv_request_delete_cahr =
-            reinterpret_cast<w32_imeadv_request_delete_cahr_lparam*>( lParam );
-          assert( reinterpret_cast<HWND>( wParam ) == w32_imeadv_request_delete_cahr->hWnd );
-          if( reinterpret_cast<HWND>( wParam ) == w32_imeadv_request_delete_cahr->hWnd ){
+          w32_imeadv_request_delete_char_lparam * w32_imeadv_request_delete_char =
+            reinterpret_cast<w32_imeadv_request_delete_char_lparam*>( lParam );
+          assert( reinterpret_cast<HWND>( wParam ) == w32_imeadv_request_delete_char->hWnd );
+          if( reinterpret_cast<HWND>( wParam ) == w32_imeadv_request_delete_char->hWnd ){
             size_t i = 0;
-            for( ; i < w32_imeadv_request_delete_cahr->num ; ++i ){
+            for( ; i < w32_imeadv_request_delete_char->num ; ++i ){
               SendMessage( user_data_ptr->signal_window ,
                            WM_W32_IMEADV_REQUEST_DELETE_CHAR ,
                            0, 0 );

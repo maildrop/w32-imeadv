@@ -59,7 +59,7 @@ extern "C"{
   };
   
   /* WM_W32_IMEADV_REQUEST_DELETE_CHAR */
-  struct w32_imeadv_request_delete_cahr_lparam{
+  struct w32_imeadv_request_delete_char_lparam{
     HWND hWnd; // request ui window handle
     size_t num;
   };
