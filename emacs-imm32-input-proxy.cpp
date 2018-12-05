@@ -64,17 +64,6 @@ int main(int argc,char* argv[])
       }else{
         controlWindow = 0;
       }
-#if !defined( NDEBUG )
-      {
-        std::stringstream out{};
-        if( IsWindow( hWnd ) ){
-          out << reinterpret_cast<intptr_t>(hWnd) << " IsWindow" << std::endl;
-        }else{
-          out << reinterpret_cast<intptr_t>(hWnd) << " IsWindow fail" << std::endl;
-        }
-        OutputDebugStringA( out.str().c_str() );
-      }
-#endif /* !defined( NDEBUG ) */
     }
   }
   

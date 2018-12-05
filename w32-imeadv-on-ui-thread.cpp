@@ -40,6 +40,11 @@ static LRESULT
 w32_imeadv_openstatus_open( HWND hWnd , WPARAM wParam , LPARAM lParam );
 static LRESULT
 w32_imeadv_openstatus_close( HWND hWnd , WPARAM wParam , LPARAM lParam );
+static LRESULT
+w32_imeadv_notify_reconversion_string( HWND hWnd , WPARAM wParam , LPARAM lParam );
+static LRESULT
+w32_imeadv_ui_perform_reconversion( HWND hWnd, WPARAM wParam , LPARAM lParam );
+
 
 template<typename CharT,typename Traits >
 std::basic_ostream<CharT,Traits>&
@@ -57,149 +62,6 @@ operator<<( std::basic_ostream<CharT,Traits>& out , const RECONVERTSTRING& recon
   return out;
 }
 
-static LRESULT
-w32_imeadv_notify_reconversion_string( HWND hWnd , WPARAM wParam , LPARAM lParam )
-{
-  BOOL result = false;
-  if( lParam ){
-    // これは今Lisp スレッドが SendMessage で送ってきてるから、lParam をコピーして自分に PostMessageして第二段階へ移行する。
-    using imeadv::NotifyReconversionString;
-    const NotifyReconversionString *nrs = reinterpret_cast<NotifyReconversionString*>( lParam );
-    // lParam の指し示す先はスタックなので、即座にコピーしてリターンする。
-    std::unique_ptr<NotifyReconversionString> ptr{ new (std::nothrow) NotifyReconversionString{} };
-    if( ptr ){
-      ptr->pos = nrs->pos;
-      ptr->begin = nrs->begin;
-      ptr->end = nrs->end;
-      ptr->first_half_num = nrs->first_half_num;
-      ptr->later_half_num = nrs->later_half_num;
-      ptr->first_half = nrs->first_half;
-      ptr->later_half = nrs->later_half;
-      if( (result = PostMessage( hWnd, WM_w32_IMEADV_UI_PERFORM_RECONVERSION ,
-                                 0 , reinterpret_cast<LPARAM>(ptr.get()) ) )){
-        ptr.release();
-      }
-    }
-  }
-  return result;
-}
-static LRESULT
-w32_imeadv_ui_perform_reconversion( HWND hWnd, WPARAM wParam , LPARAM lParam )
-{
-  // 実際の再変換コードはココ
-  if( ! lParam ){
-    return 0;
-  }
-  using imeadv::NotifyReconversionString;
-  std::unique_ptr<NotifyReconversionString> nrs{reinterpret_cast<NotifyReconversionString*>( lParam )};
-  const size_t text_length = nrs->first_half.size() + nrs->later_half.size();
-  const size_t text_memory_byte = sizeof( wchar_t ) * (text_length + 1);
-  const size_t memory_block_size = sizeof( RECONVERTSTRING ) + text_memory_byte;
-  std::unique_ptr<BYTE[]> memory_block{ new ( std::nothrow ) BYTE[ memory_block_size ] };
-  if( memory_block ){
-    // メモリブロックを切り分けます
-    RECONVERTSTRING *reconv{reinterpret_cast<RECONVERTSTRING*>( memory_block.get() ) };
-    { // reconv の設定
-      reconv->dwSize = memory_block_size;
-      reconv->dwVersion = 0;
-      reconv->dwStrLen = text_length;
-      reconv->dwStrOffset = sizeof( RECONVERTSTRING );
-      reconv->dwCompStrLen = 0;
-      reconv->dwCompStrOffset = nrs->first_half.size() * sizeof( wchar_t );
-      reconv->dwTargetStrLen = 0;
-      reconv->dwTargetStrOffset = reconv->dwCompStrOffset;
-    }
-    wchar_t * text{reinterpret_cast<wchar_t*>( memory_block.get() + sizeof( RECONVERTSTRING ))};
-    { // textの設定
-      wchar_t * p = text;
-      std::for_each( std::begin( nrs->first_half ) , std::end( nrs->first_half ),
-                     [&p]( const wchar_t& v ){
-                       *(p++) = v;
-                     } );
-      std::for_each( std::begin( nrs->later_half ) , std::end( nrs->later_half ),
-                     [&p]( const wchar_t& v ){
-                       *(p++) = v;
-                     } );
-      *(p++) = L'\0';
-      assert( reinterpret_cast<void*>(p) == (memory_block.get() + memory_block_size) );
-    }
-    
-    // メモリブロック全体の準備が出来たので、変換実行を始めます
-    HIMC hImc = ImmGetContext( hWnd );
-    if( hImc ){
-      HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
-      do{
-        const DWORD cursor_position = reconv->dwCompStrOffset;
-        // まず最初に RECONVERTSTRING の調整をIMEに任せます。
-        if( ! ImmSetCompositionStringW( hImc , SCS_QUERYRECONVERTSTRING ,
-                                       (LPVOID)memory_block.get(),
-                                       (DWORD)memory_block_size ,
-                                       nullptr , 0 ) ){
-          DebugOutputStatic( "ImmSetCompositionStringW SCS_QUERYRECONVERTSTRING failed" );
-          break;
-        }
-        // カーソル位置の調整を行う必要があるが、後回し。
-        if( 0 < cursor_position - reconv->dwCompStrOffset ){
-          /* cursor_position から reconv->dwComStrOffset にカーソルが左にずれたので、
-             これをバイト単位から wchar_t 単位にして、サロゲートペアを考慮して文字数単位に変換する */
-          wchar_t * const lft = reinterpret_cast<wchar_t*>((reinterpret_cast<BYTE*>(text)) + reconv->dwCompStrOffset);
-          wchar_t * const rgt = reinterpret_cast<wchar_t*>((reinterpret_cast<BYTE*>(text)) + cursor_position);
-          size_t nCharacter = 0;
-          for( wchar_t* p = lft ; p < rgt ; ++p , ++nCharacter ){
-            if( ((*p & 0xFC00) == 0xD800) && (*(p+1)& 0xFC00)== 0xDC00 ){
-              ++p; // UTF-16 surroage pair;
-            }
-          }
-          if( 0< nCharacter ){
-            if( communication_window_handle ){
-              w32_imeadv_request_backward_char_lparam backward_char = { hWnd, nCharacter };
-              auto times = SendMessage( communication_window_handle , WM_W32_IMEADV_REQUEST_BACKWARD_CHAR ,
-                                        reinterpret_cast<WPARAM>(hWnd),
-                                        reinterpret_cast<LPARAM>(&backward_char ));
-              if( times ){
-                my_wait_message<WM_W32_IMEADV_NOTIFY_BACKWARD_CHAR>( hWnd,  times );
-              }
-            }
-          }
-        }
-        
-        if( ! ImmSetCompositionStringW( hImc, SCS_SETRECONVERTSTRING ,
-                                        (LPVOID)memory_block.get(),
-                                        (DWORD)memory_block_size ,
-                                        nullptr , 0 ) ){
-          
-          DebugOutputStatic( "ImmSetCompositionStringW SCS_SETRECONVERTSTRING failed" );
-          break;
-        }
-        {
-          // 再変換文字は、後でIMEが投入してくるので、ここで消す
-          wchar_t * const lft =
-            reinterpret_cast<wchar_t*>( (reinterpret_cast<BYTE*>(text)) + reconv->dwCompStrOffset );
-          wchar_t * const rgt = lft + reconv->dwCompStrLen;
-          size_t nCharacter = 0;
-          for( wchar_t* p = lft ; p < rgt ; ++p , ++nCharacter ){
-            if( ((*p & 0xFC00) == 0xD800) && (*(p+1)& 0xFC00)== 0xDC00 ){
-              ++p; // UTF-16 surroage pair;
-            }
-          }
-          if( 0< nCharacter ){
-            w32_imeadv_request_delete_char_lparam delete_char = { hWnd , nCharacter };
-            auto times = SendMessage( communication_window_handle ,
-                                      WM_W32_IMEADV_REQUEST_DELETE_CHAR ,
-                                      reinterpret_cast<WPARAM>( hWnd ),
-                                      reinterpret_cast<LPARAM>( &delete_char ) );
-            if( times ){
-              my_wait_message<WM_W32_IMEADV_NOTIFY_DELETE_CHAR>( hWnd, times );
-            }
-          }
-        }
-      }while( false );
-      VERIFY( ImmReleaseContext( hWnd, hImc ) );
-    }
-    
-  }
-  return 1;
-}
 
 template<UINT WaitMessage , DWORD dwTimeOutMillSecond> static inline BOOL 
 my_wait_message( HWND hWnd , DWORD times)
@@ -466,18 +328,109 @@ w32_imeadv_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
 
   case IMR_DOCUMENTFEED:
     {
-      DebugOutputStatic( "w32_imeadv_wm_ime_request -> IMR_DOCUMENTFEED" );
+      //      DebugOutputStatic( "w32_imeadv_wm_ime_request -> IMR_DOCUMENTFEED" );
       HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
       if( communication_window_handle ){
-        
-        if( SendMessageW( communication_window_handle , WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING ,
-                          reinterpret_cast<WPARAM>(hWnd) , 0 ) ){
-          // Wait Conversion Message
-          my_wait_message<WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING>( hWnd );
+        using imeadv::NotifyReconversionString;
+        std::unique_ptr<NotifyReconversionString> nrs { new ( std::nothrow ) NotifyReconversionString() };
+        if( ! static_cast<bool>( nrs ) ){
           return 0;
         }
+        SUBCLASSPROC const subclass_proc = 
+          []( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM lParam ,
+              UINT_PTR uIdSubclass , DWORD_PTR dwRefData )->LRESULT {
+            NotifyReconversionString* dst( reinterpret_cast<NotifyReconversionString*>( dwRefData ));
+            NotifyReconversionString* src(reinterpret_cast<NotifyReconversionString*>( lParam ));
+            if( dst && src ){
+              dst->pos = src->pos;
+              dst->begin = src->begin;
+              dst->end = src->end;
+              dst->first_half_num = src->first_half_num;
+              dst->later_half_num = src->later_half_num;
+              dst->first_half = src->first_half;
+              dst->later_half = src->later_half;
+            }
+            return ::DefSubclassProc( hWnd, uMsg ,wParam , lParam );
+          };
+        
+        if( SetWindowSubclass( hWnd, subclass_proc ,
+                               reinterpret_cast<UINT_PTR>(subclass_proc) ,
+                               reinterpret_cast<DWORD_PTR>( nrs.get()  ) ) ){
+          if( SendMessageW( communication_window_handle , WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING ,
+                            reinterpret_cast<WPARAM>(hWnd) , 0 ) ){
+            // Wait Conversion Message
+            my_wait_message<WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING>( hWnd );
+            if( !::RemoveWindowSubclass( hWnd , subclass_proc , reinterpret_cast<UINT_PTR>( subclass_proc ) ) ){
+              // 不本意ながら、メモリーリークとなるが、サブクラス化の解除が出来ないので、dwRefData をそのまま残しておく 
+              nrs.release();
+              DebugOutputStatic("** WARNING ** RemoveWindowSubclass failed");
+              return 0;
+            }
+            if( lParam ){
+              BYTE * const ptr(reinterpret_cast<BYTE*>( lParam ));
+              RECONVERTSTRING * const reconv( reinterpret_cast<RECONVERTSTRING*>( lParam ) );
+              if( reconv->dwSize < sizeof( RECONVERTSTRING ) ){
+                DebugOutputStatic( "reconv->dwSize < sizeof( RECONVERTSTRING )" );
+                return 0;
+              }
+              if( reconv->dwStrOffset < sizeof( RECONVERTSTRING ) ){
+                reconv->dwStrOffset = sizeof( RECONVERTSTRING );
+              }
+              if( reconv->dwSize < reconv->dwStrOffset ){
+                DebugOutputStatic( "reconv->dwSize < reconv->dwStrOffset" );
+                return 0;
+              }
+              reconv->dwVersion = 0;
+              reconv->dwStrLen = (std::min)((( reconv->dwSize - reconv->dwStrOffset ) / sizeof( wchar_t )) ,
+                                            nrs->first_half.size() + nrs->later_half.size() );
+              // reconv->dwStrOffset ; set up above.
+              reconv->dwCompStrLen = 0;
+              reconv->dwCompStrOffset = sizeof( wchar_t ) * nrs->first_half.size() ;
+              reconv->dwTargetStrLen = 0;
+              reconv->dwTargetStrOffset = sizeof( wchar_t ) * nrs->first_half.size() ;
+              
+              wchar_t* const text = reinterpret_cast<wchar_t*>(ptr + reconv->dwStrOffset);
+              wchar_t* p = text;
+              if(nrs->first_half.size() <= reconv->dwStrLen){
+                for( auto&& v : nrs->first_half ){
+                  if( p - text < reconv->dwStrLen){
+                    *(p++) = v;
+                  }else{
+                    break;
+                  }
+                }
+                for( auto&& v : nrs->later_half ){
+                  if( p - text < reconv->dwStrLen ){
+                    *(p++) = v;
+                  }else{
+                    break;
+                  }
+                }
+                if( p < text + reconv->dwStrLen ){
+                  std::fill( p , text + reconv->dwStrLen , L'\0' );
+                }
+              }
+#if 0
+              {
+                std::wstringstream out{};
+                out << *reconv << " \"";
+                std::for_each( text , text + reconv->dwStrLen ,
+                               [&out]( const wchar_t &v ){
+                                 out << v;
+                               });
+                out << DEBUG_STRING( "\" return DOCUMENT_FEEED" );
+                OutputDebugStringW( out.str().c_str() );
+              }
+#endif 
+              return reconv->dwStrLen;
+            }else{
+              return sizeof( RECONVERTSTRING ) +
+                (sizeof( wchar_t ) * ( nrs->first_half.size() + nrs->later_half.size() + 1 ));
+            }
+          }
+        }
       }
-      break;
+      return 0;
     }
     
   case IMR_QUERYCHARPOSITION:
@@ -554,6 +507,152 @@ w32_imeadv_openstatus_close( HWND hWnd , WPARAM wParam , LPARAM lParam )
   return 0;
 }
 
+static LRESULT
+w32_imeadv_notify_reconversion_string( HWND hWnd , WPARAM wParam , LPARAM lParam )
+{
+  BOOL result = false;
+  if( lParam ){
+    // これは今Lisp スレッドが SendMessage で送ってきてるから、lParam をコピーして自分に PostMessageして第二段階へ移行する。
+    using imeadv::NotifyReconversionString;
+    const NotifyReconversionString *nrs = reinterpret_cast<NotifyReconversionString*>( lParam );
+    // lParam の指し示す先はスタックなので、即座にコピーしてリターンする。
+    std::unique_ptr<NotifyReconversionString> ptr{ new (std::nothrow) NotifyReconversionString{} };
+    if( ptr ){
+      ptr->pos = nrs->pos;
+      ptr->begin = nrs->begin;
+      ptr->end = nrs->end;
+      ptr->first_half_num = nrs->first_half_num;
+      ptr->later_half_num = nrs->later_half_num;
+      ptr->first_half = nrs->first_half;
+      ptr->later_half = nrs->later_half;
+      if( (result = PostMessage( hWnd, WM_w32_IMEADV_UI_PERFORM_RECONVERSION ,
+                                 0 , reinterpret_cast<LPARAM>(ptr.get()) ) )){
+        ptr.release();
+      }
+    }
+  }
+  return result;
+}
+
+static LRESULT
+w32_imeadv_ui_perform_reconversion( HWND hWnd, WPARAM wParam , LPARAM lParam )
+{
+  // 実際の再変換コードはココ
+  if( ! lParam ){
+    return 0;
+  }
+  
+  using imeadv::NotifyReconversionString;
+  std::unique_ptr<NotifyReconversionString> nrs{reinterpret_cast<NotifyReconversionString*>( lParam )};
+  const size_t text_length = nrs->first_half.size() + nrs->later_half.size();
+  const size_t text_memory_byte = sizeof( wchar_t ) * (text_length + 1);
+  const size_t memory_block_size = sizeof( RECONVERTSTRING ) + text_memory_byte;
+  std::unique_ptr<BYTE[]> memory_block{ new ( std::nothrow ) BYTE[ memory_block_size ] };
+  if( memory_block ){
+    // メモリブロックを切り分けます
+    RECONVERTSTRING *reconv{reinterpret_cast<RECONVERTSTRING*>( memory_block.get() ) };
+    { // reconv の設定
+      reconv->dwSize = memory_block_size;
+      reconv->dwVersion = 0;
+      reconv->dwStrLen = text_length;
+      reconv->dwStrOffset = sizeof( RECONVERTSTRING );
+      reconv->dwCompStrLen = 0;
+      reconv->dwCompStrOffset = nrs->first_half.size() * sizeof( wchar_t );
+      reconv->dwTargetStrLen = 0;
+      reconv->dwTargetStrOffset = reconv->dwCompStrOffset;
+    }
+    wchar_t * text{reinterpret_cast<wchar_t*>( memory_block.get() + sizeof( RECONVERTSTRING ))};
+    { // textの設定
+      wchar_t * p = text;
+      std::for_each( std::begin( nrs->first_half ) , std::end( nrs->first_half ),
+                     [&p]( const wchar_t& v ){
+                       *(p++) = v;
+                     } );
+      std::for_each( std::begin( nrs->later_half ) , std::end( nrs->later_half ),
+                     [&p]( const wchar_t& v ){
+                       *(p++) = v;
+                     } );
+      *(p++) = L'\0';
+      assert( reinterpret_cast<void*>(p) == (memory_block.get() + memory_block_size) );
+    }
+    
+    // メモリブロック全体の準備が出来たので、変換実行を始めます
+    HIMC hImc = ImmGetContext( hWnd );
+    if( hImc ){
+      HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
+      do{
+        const DWORD cursor_position = reconv->dwCompStrOffset;
+        // まず最初に RECONVERTSTRING の調整をIMEに任せます。
+        if( ! ImmSetCompositionStringW( hImc , SCS_QUERYRECONVERTSTRING ,
+                                        (LPVOID)memory_block.get(),
+                                        (DWORD)memory_block_size ,
+                                        nullptr , 0 ) ){
+          DebugOutputStatic( "ImmSetCompositionStringW SCS_QUERYRECONVERTSTRING failed" );
+          break;
+        }
+        // カーソル位置の調整を行う必要があるが、後回し。
+        if( 0 < cursor_position - reconv->dwCompStrOffset ){
+          /* cursor_position から reconv->dwComStrOffset にカーソルが左にずれたので、
+             これをバイト単位から wchar_t 単位にして、サロゲートペアを考慮して文字数単位に変換する */
+          wchar_t * const lft = reinterpret_cast<wchar_t*>((reinterpret_cast<BYTE*>(text)) + reconv->dwCompStrOffset);
+          wchar_t * const rgt = reinterpret_cast<wchar_t*>((reinterpret_cast<BYTE*>(text)) + cursor_position);
+          size_t nCharacter = 0;
+          for( wchar_t* p = lft ; p < rgt ; ++p , ++nCharacter ){
+            if( ((*p & 0xFC00) == 0xD800) && (*(p+1)& 0xFC00)== 0xDC00 ){
+              ++p; // UTF-16 surroage pair;
+            }
+          }
+          if( 0< nCharacter ){
+            if( communication_window_handle ){
+              w32_imeadv_request_backward_char_lparam backward_char = { hWnd, nCharacter };
+              auto times = SendMessage( communication_window_handle , WM_W32_IMEADV_REQUEST_BACKWARD_CHAR ,
+                                        reinterpret_cast<WPARAM>(hWnd),
+                                        reinterpret_cast<LPARAM>(&backward_char ));
+              if( times ){
+                my_wait_message<WM_W32_IMEADV_NOTIFY_BACKWARD_CHAR>( hWnd,  times );
+              }
+            }
+          }
+        }
+        
+        if( ! ImmSetCompositionStringW( hImc, SCS_SETRECONVERTSTRING ,
+                                        (LPVOID)memory_block.get(),
+                                        (DWORD)memory_block_size ,
+                                        nullptr , 0 ) ){
+          
+          DebugOutputStatic( "ImmSetCompositionStringW SCS_SETRECONVERTSTRING failed" );
+          break;
+        }
+        {
+          // 再変換文字は、後でIMEが投入してくるので、ここで消す
+          wchar_t * const lft =
+            reinterpret_cast<wchar_t*>( (reinterpret_cast<BYTE*>(text)) + reconv->dwCompStrOffset );
+          wchar_t * const rgt = lft + reconv->dwCompStrLen;
+          size_t nCharacter = 0;
+          for( wchar_t* p = lft ; p < rgt ; ++p , ++nCharacter ){
+            if( ((*p & 0xFC00) == 0xD800) && (*(p+1)& 0xFC00)== 0xDC00 ){
+              ++p; // UTF-16 surroage pair;
+            }
+          }
+          if( 0< nCharacter ){
+            w32_imeadv_request_delete_char_lparam delete_char = { hWnd , nCharacter };
+            auto times = SendMessage( communication_window_handle ,
+                                      WM_W32_IMEADV_REQUEST_DELETE_CHAR ,
+                                      reinterpret_cast<WPARAM>( hWnd ),
+                                      reinterpret_cast<LPARAM>( &delete_char ) );
+            if( times ){
+              my_wait_message<WM_W32_IMEADV_NOTIFY_DELETE_CHAR>( hWnd, times );
+            }
+          }
+        }
+      }while( false );
+      VERIFY( ImmReleaseContext( hWnd, hImc ) );
+    }
+    
+  }
+  return 1;
+}
+
 LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM lParam ,
                                   UINT_PTR uIdSubclass, DWORD_PTR dwRefData ){
   UNREFERENCED_PARAMETER( dwRefData );
@@ -578,12 +677,16 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
     return ::DefSubclassProc( hWnd , uMsg , wParam ,lParam );
   case WM_IME_COMPOSITION:
     return w32_imeadv_wm_ime_composition( hWnd , wParam , lParam );
+
   case WM_IME_STARTCOMPOSITION:
     return w32_imeadv_wm_ime_startcomposition_emacs26( hWnd ,wParam , lParam);
+
   case WM_IME_ENDCOMPOSITION:
     return w32_imeadv_wm_ime_endcomposition( hWnd, wParam , lParam );
+
   case WM_IME_NOTIFY :
     return w32_imeadv_wm_ime_notify( hWnd, wParam , lParam );
+
   case WM_IME_REQUEST:
     return w32_imeadv_wm_ime_request( hWnd, wParam , lParam );
     
@@ -592,10 +695,13 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
     /* ********************************** */
   case WM_W32_IMEADV_NULL:
     return w32_imeadv_null( hWnd , wParam , lParam );
+
   case WM_W32_IMEADV_OPENSTATUS_OPEN:
     return w32_imeadv_openstatus_open( hWnd , wParam , lParam );
+
   case WM_W32_IMEADV_OPENSTATUS_CLOSE:
     return w32_imeadv_openstatus_close( hWnd , wParam , lParam );
+
   case WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT:
     {
       if( lParam ){
@@ -625,14 +731,16 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
       }
     }
     return 1;
+
   case WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING:
     return w32_imeadv_notify_reconversion_string( hWnd, wParam , lParam );
+
   case WM_w32_IMEADV_UI_PERFORM_RECONVERSION:
     return w32_imeadv_ui_perform_reconversion( hWnd, wParam , lParam );
     
   case WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING:
-    DebugOutputStatic( "consume WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING message\n" );
     return 1;
+
   default: 
     break;
   }

@@ -4,7 +4,7 @@
    わかっていたけどすげー難しい。
 
    TODO:: 未実装の Lisp 関数
-    - "w32-imeadv--notify-documentfeed-string"
+   - "w32-imeadv--notify-documentfeed-string"
    emacs_env_25 のメンバーは、emacs_env* つまりemacs_env_26 を引数にとるのであるが本当にそれでいいのか？
 */
 
@@ -276,10 +276,6 @@ Fw32_imeadv__default_message_input_handler ( emacs_env* env ,
           }
           break;
         case 'R': // Reconversion
-          // ===========================================
-          // TODO いまここ 再変換用の文字列を送るところ
-          // ===========================================
-          DebugOutputStatic(" dispatch reconversion string");
           if( !env->is_not_nil( env , my_funcall( env , u8"w32-imeadv--notify-reconversion-string") )){
             const HWND hWnd = w32_imeadv::get_communication_HWND() ;
             if( hWnd && IsWindow( hWnd )){
@@ -292,10 +288,10 @@ Fw32_imeadv__default_message_input_handler ( emacs_env* env ,
           }
           break;
         case 'D': // Document Feed
-          DebugOutputStatic( " dispatch documentfeed string");
           if( !env->is_not_nil( env , my_funcall( env , u8"w32-imeadv--notify-documentfeed-string") )){
             const HWND hWnd = w32_imeadv::get_communication_HWND() ;
             if( hWnd && IsWindow( hWnd ) ){
+              DebugOutputStatic( "faillback WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING" );
               SendMessage( hWnd , WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING , 0, 0 );
             }else{
               message_utf8( env,
@@ -383,8 +379,8 @@ Fw32_imeadv_set_openstatus_close( emacs_env* env,
 template<typename emacs_env_t>
 static emacs_value
 Fw32_imeadv__notify_openstatus_open( emacs_env* env,
-                                    ptrdiff_t nargs , emacs_value[],
-                                    void *data ) EMACS_NOEXCEPT
+                                     ptrdiff_t nargs , emacs_value[],
+                                     void *data ) EMACS_NOEXCEPT
 {
   if( 0 == nargs )
     {
@@ -433,11 +429,11 @@ Fw32_imeadv_advertise_ime_composition_font( emacs_env *env,
             std::wstring font_family = my_copy_string_contents( env , family );
             for( ptrdiff_t i = 0; i < LF_FACESIZE ; ++i ){
               std::for_each( std::begin( font_family ), std::end( font_family ),
-                           [&]( const wchar_t &c ){
-                             if( (LF_FACESIZE-1) <= i  ) // The last one is terminate character.
-                               return;
-                             font_configure.lfFaceName[i++] = c;
-                           });
+                             [&]( const wchar_t &c ){
+                               if( (LF_FACESIZE-1) <= i  ) // The last one is terminate character.
+                                 return;
+                               font_configure.lfFaceName[i++] = c;
+                             });
               for( ; i < LF_FACESIZE ; ++i ){
                 font_configure.lfFaceName[i] = L'\0'; // fill by terminate character
               }
@@ -472,7 +468,7 @@ Fw32_imeadv_advertise_ime_composition_font( emacs_env *env,
   return env->intern( env , u8"nil" );
 }
 
-template<typename emacs_env_t>
+template<typename emacs_env_t, UINT resultCode>
 static emacs_value
 Fw32_imeadv__notify_reconversion_string( emacs_env *env,
                                          ptrdiff_t nargs , emacs_value value[],
@@ -482,7 +478,7 @@ Fw32_imeadv__notify_reconversion_string( emacs_env *env,
   emacs_value begin = my_funcall( env , u8"line-beginning-position");
   emacs_value end = my_funcall( env , u8"line-end-position" );
 
-  
+  /* 確認用 */
   auto first_half_num = env->extract_integer( env,my_funcall( env , u8"-" , pos , begin ) );
   auto later_half_num = env->extract_integer( env, my_funcall( env, u8"-" , end , pos ) );
 
@@ -490,7 +486,7 @@ Fw32_imeadv__notify_reconversion_string( emacs_env *env,
   emacs_value first_half = my_funcall( env , u8"buffer-substring-no-properties" ,
                                        begin , pos );
   emacs_value later_half = my_funcall( env , u8"buffer-substring-no-properties",
-                                        pos ,  end );
+                                       pos ,  end );
   std::wstring first_half_str =
     ( env->is_not_nil( env,first_half ) ) ? my_copy_string_contents( env , first_half ) : std::wstring{};
   std::wstring later_half_str =
@@ -529,7 +525,7 @@ Fw32_imeadv__notify_reconversion_string( emacs_env *env,
   {
     const HWND hWnd = w32_imeadv::get_communication_HWND();
     if( hWnd && IsWindow( hWnd ) ){
-      if( SendMessage( hWnd , WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING , 0 , reinterpret_cast<LPARAM>( &nrs ) ) ){
+      if( SendMessage( hWnd , resultCode , 0 , reinterpret_cast<LPARAM>( &nrs ) ) ){
         return env->intern( env , u8"t" ) ;
       }
     }
@@ -642,11 +638,15 @@ static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
 
   fset( env ,
         env->intern( env , u8"w32-imeadv--notify-reconversion-string" ),
-        (env->make_function( env , 0, 0 ,Fw32_imeadv__notify_reconversion_string<emacs_env_t>,
+        (env->make_function( env , 0, 0 ,
+                             Fw32_imeadv__notify_reconversion_string<emacs_env_t,
+                             WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING>,
                              u8"IMEから再変換要求がなされたときに呼び出される関数です" , NULL )));
   fset( env,
         env->intern( env , u8"w32-imeadv--notify-documentfeed-string" ),
-        (env->make_function( env , 0 , 0,Fw32_imeadv__not_implemented<emacs_env_t>,
+        (env->make_function( env , 0 , 0,
+                             Fw32_imeadv__notify_reconversion_string<emacs_env_t,
+                             WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING>,
                              u8"IMEからDOCUMENT FEED がなされたときに呼び出される関数です（まだ作っていない)",NULL )));
   
   std::array<emacs_value,1> provide_args =  { env->intern( env , u8"w32-imeadv" ) };

@@ -96,8 +96,8 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
   case WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT:
     {
       /* いま、これは二種類の状況があって、
-       一つは、S式からの関数の呼び出しもう一つは、 request_composition_font からの呼び出し  wParam が ゼロかどうかを見るのが
-       手段である。*/
+         一つは、S式からの関数の呼び出しもう一つは、 request_composition_font からの呼び出し  wParam が ゼロかどうかを見るのが
+         手段である。*/
       //DebugOutputStatic("WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT");
       if( user_data_ptr ){
         std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
@@ -146,7 +146,7 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
     
   case WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING:
     {
-      DebugOutputStatic( " WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING " );
+      //DebugOutputStatic( "WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING" );
       if( user_data_ptr ){
         std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
         if( wParam ){
