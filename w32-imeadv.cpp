@@ -91,6 +91,27 @@ message_utf8( emacs_env_t* env , const std::string& utf8_text )
 }
 
 template<typename emacs_env_t>
+static inline emacs_value
+my_make_value( emacs_env_t* env, const std::string& utf8_text )
+{
+  return env->make_string( env, utf8_text.c_str() , utf8_text.size() );
+}
+
+template<typename emacs_env_t>
+static inline emacs_value
+my_make_value( emacs_env_t* env, const int& integer )
+{
+  return env->make_integer( env , integer );
+}
+
+template<typename emacs_env_t>
+static inline emacs_value
+my_make_value( emacs_env_t *, emacs_value& value )
+{
+  return value;
+}
+
+template<typename emacs_env_t>
 static inline void
 fset( emacs_env_t* env , emacs_value symbol, emacs_value function )
 {
@@ -150,6 +171,18 @@ my_funcall( emacs_env_t *env , const char* proc_name , Args ... args )
     return env->funcall( env, proc_symbol , proc_args.size() , proc_args.data() );
   }
   return env->intern( env , u8"nil" );
+}
+
+template<typename emacs_env_t, typename value_type>
+static inline emacs_value
+my_defvar( emacs_env_t *env , const std::string& symbol_name , value_type value , const std::string& document)
+{
+  emacs_value eval_string =
+    my_funcall(env,u8"format", my_make_value(env, std::string(u8"(defvar %s %S %S)")),
+               my_make_value( env, symbol_name ), my_make_value( env,  value ), my_make_value( env, document ));
+  return my_funcall( env , u8"eval",
+                     my_funcall( env, u8"car" ,
+                                 my_funcall( env , u8"read-from-string" , eval_string )));
 }
 
 #if !defined( NDEBUG )
@@ -384,6 +417,7 @@ Fw32_imeadv__notify_openstatus_open( emacs_env* env,
 {
   if( 0 == nargs )
     {
+      // run-hooks したい
       message_utf8( env , std::string( u8"Open" ));
       return env->intern( env, u8"t" );
     }
@@ -504,6 +538,7 @@ Fw32_imeadv__notify_reconversion_string( emacs_env *env,
     nrs.later_half = later_half_str;
   }
   
+#if !defined( NDEBUG )
   // ちゃんとサロゲートペアを処理しているかどうかのテスト
   if(first_half_num != static_cast<decltype(first_half_num)>(first_half_str.length()) ){
     std::wstringstream out{};
@@ -521,7 +556,8 @@ Fw32_imeadv__notify_reconversion_string( emacs_env *env,
         << DEBUG_STRING(L" ") << std::endl;
     OutputDebugStringW( out.str().c_str() );
   }
-
+#endif /* !defined( NDEBUG ) */
+  
   {
     const HWND hWnd = w32_imeadv::get_communication_HWND();
     if( hWnd && IsWindow( hWnd ) ){
@@ -568,6 +604,21 @@ static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
   }
 #endif /* !defined( NDEBUG ) */
 
+  my_defvar( env, u8"w32-imeadv-ime-show-mode-line" ,
+             env->intern( env, u8"t") ,
+             u8"When t, mode line indicates IME state.");
+  my_defvar( env, u8"w32-imeadv-ime-on-hook",
+             env->intern( env, u8"nil"),
+             u8"TODO: ");
+  my_defvar( env, u8"w32-imeadv-ime-off-hook",
+             env->intern( env, u8"nil"),
+             u8"TODO: ");
+  my_defvar( env, u8"w32-imeadv-ime-composition-font-attributes",
+             env->intern( env, u8"nil"),
+             u8"IME のコンポジションウィンドウで使うフォントの属性を指定する"
+             "手動オーバーライドするための変数"
+             "これを指定しているときには固定値になる");
+  
   fset( env,
         env->intern( env , u8"w32-imeadv--get-module-filename" ),
         (env->make_function( env, 0, 0 , Fw32_imeadv__get_module_filename<emacs_env_t>,
