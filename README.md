@@ -26,8 +26,6 @@ IMM32 dynamic module for Emacs on Windows
 異字体セレクタがまだ実装できていません。
 
 ## TODO
-- 再変換機能ののコード追加
-- DocumentFeed 機能のコード追加
 - 開いた・閉じたの通知は来るので、mode line をアップデートするように lisp コードを書くこと
 - emacs-imm32-input-proxy.exe を rundll32.exe を使って、dll として導入を図ること。
 （そうすれば普通に単一のdllファイルで、w32-imeadv.dll だけで処理できるようになる）
@@ -42,6 +40,8 @@ IMM32 dynamic module for Emacs on Windows
 - S式からIMEの Open/Close 制御
 - S式へのIMEからのフォント要求通知
 - S式からのフォントの設定 (S式へのIMEからのフォント要求通知 からの組み合わせで、現在のface のフォント情報を利用して設定できるようになった)
+- 再変換機能ののコード追加
+- DocumentFeed 機能のコード追加
 
 ## Dynamic Module では実現不可能な内容
 - Lispスレッドのコモンダイアログを開くコードが、 UI ウィンドウを親として開くために一時的にデットロックする問題（GNUEmacsBug11732)
