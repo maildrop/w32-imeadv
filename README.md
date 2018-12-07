@@ -15,8 +15,6 @@ IMM32 dynamic module for Emacs on Windows
 - GNUのコードをできるだけそのままにする。
 - Dynamic Module を起点として、 Emacs Lisp の S式を直接呼び出すことはサポートされないので、一旦外部プロセスを経由した、Self-Pipe-Trick を使い、フィルター関数を経由して再度 Dynamic ModuleのS式を呼び出すことにした。
 
- これまでは、再変換とDocumentFeedの二つの機能は、UI スレッドから、Lispスレッドの変数にアクセスするために（GCと衝突してよく終了していたが）これをS式経由で制御できるようになりそうなので、もう少し安定化と高機能化が図れそうである。
-
 # 注意
 
 まだ、abort の可能性があります。
