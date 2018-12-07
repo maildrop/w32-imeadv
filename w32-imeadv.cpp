@@ -417,8 +417,7 @@ Fw32_imeadv__notify_openstatus_open( emacs_env* env,
 {
   if( 0 == nargs )
     {
-      // run-hooks したい
-      message_utf8( env , std::string( u8"Open" ));
+      my_funcall( env , "run-hooks" ,env->intern(env , u8"w32-imeadv-ime-on-hook") );
       return env->intern( env, u8"t" );
     }
   return env->intern( env , u8"nil" );
@@ -432,7 +431,7 @@ Fw32_imeadv__notify_openstatus_close( emacs_env* env,
 {
   if( 0 == nargs )
     {
-      message_utf8( env, std::string( u8"Close" ));
+      my_funcall( env, "run-hooks" , env->intern(env, u8"w32-imeadv-ime-off-hook") );
       return env->intern( env , u8"t" );
     }
   return env->intern( env, u8"nil" );
