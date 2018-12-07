@@ -1,4 +1,5 @@
-# w32-imeadv
+# w32-imeadv (experimental implementation : 実験的実装)
+
 IMM32 dynamic module for Emacs on Windows
 これまで、EmacsでIME実用的に使用するためには複雑なパッチを当てる必要があったが、
 この作業は煩雑で注意が必要な作業であった。
@@ -6,6 +7,7 @@ IMM32 dynamic module for Emacs on Windows
 このパッチ当ての作業を簡素化するために、Dynamic Module を利用したコードを書き下ろすことにした。
 
 # 目標
+
 「できるだけ」GNU 配布のソースを --with-modules でコンパイルしただけで使えるようにすること。
 既存の w32-ime.el の機能を満たすこと。互換層を作ること。
 
@@ -25,14 +27,29 @@ IMM32 dynamic module for Emacs on Windows
 
 異字体セレクタがまだ実装できていません。
 
+# 使い方
+ Dynamic moduleを使っているので、  --with-modules をつけてコンパイルした Emacs が必要になります。
+
+ 本モジュールをビルドして作った二つのファイル 
+- w32-adv.dll
+-- これは $(PREFIX)/share/emacs/26.1/site-lisp に配置 これが dynamic module 本体になります
+- emacs-imm32-input-proxy.exe
+-- これを $(PREFIX)/bin/emacs-imm32-input-proxy.exe に配置 これは、IMM がw32adv.dll を通して通知したイベントをトランポリンして、もう一度 w32adv.dll のコードへ送るためのコードになります。
+
+あとは、追加のサンプルに、lisp-w32-imeadv.el がありますので、どうにかする。
+
 ## TODO
-- 開いた・閉じたの通知は来るので、mode line をアップデートするように lisp コードを書くこと
 - emacs-imm32-input-proxy.exe を rundll32.exe を使って、dll として導入を図ること。
 （そうすれば普通に単一のdllファイルで、w32-imeadv.dll だけで処理できるようになる）
 - 異字体セレクタを考慮すること
 - 本体のemacs.exe が異常終了したときに、emacs-imm32-input-proxy.exe が残ってしまうので、emacs.exe のプロセスハンドルを開いてMsgWaitForMultipleObjectsで待つように変更すること。
-- 互換用の w32-ime.el の作成 （これは Lisp に精通する必要があるので遅れる）
+- 互換用の w32-ime.el の作成？ 必要？ （これは Lisp に精通する必要があるので遅れる）
 - daemon mode で立ち上げた場合に、どうするのかを考える（これは後回し）
+
+## BUG
+- まだ、IME側のフォント変更のタイミングが怪しい。UIからデフォルトフォントを変更した後、最初の変換はIME側に行ってない。
+- 大量のデバッグログを OutputDebugString 側に吐き出す。
+- そもそも、まだ「動いた」のレベルである。
 
 ## できたこと
 - WM_IME_ 及びその他のウィンドウメッセージを収奪
@@ -42,6 +59,8 @@ IMM32 dynamic module for Emacs on Windows
 - S式からのフォントの設定 (S式へのIMEからのフォント要求通知 からの組み合わせで、現在のface のフォント情報を利用して設定できるようになった)
 - 再変換機能ののコード追加
 - DocumentFeed 機能のコード追加
+- 開いた・閉じたの通知は来るので、mode line をアップデートするように lisp コードを書くこと
+- after-make-frame-functions フックを使ってフレーム作成毎に、w32-imeadv-inject-control するようにした。
 
 ## Dynamic Module では実現不可能な内容
 - Lispスレッドのコモンダイアログを開くコードが、 UI ウィンドウを親として開くために一時的にデットロックする問題（GNUEmacsBug11732)
@@ -49,7 +68,3 @@ IMM32 dynamic module for Emacs on Windows
 
 ## 感想
 Mircrosoft Windows のフック関数の有能さに救われている。
-
-
-
-
