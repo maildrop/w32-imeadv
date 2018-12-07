@@ -1,5 +1,12 @@
-(when (load "w32-imeadv")
-  (when (w32-imeadv-initialize)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; w32-imeadv 初期化部分
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(when (and window-system (locate-library "w32-imeadv") ) ; Windowシステムであり、w32-imeadvが存在していれば、
+  (load "w32-imeadv") ; w32-imeadv をロードする。
+  (when (w32-imeadv-initialize) ; w32-imeadv-initialize は失敗することがあります。
+    ; 通知用のサブプロセス( UIスレッドのイベントを、self-pipe-trick で、入力へ変換する ) の起動
     (let ((process-connection-type nil )
           (process-name "emacs-imm32-input-proxy"))
 	  (start-process process-name nil
@@ -7,24 +14,22 @@
 		             (number-to-string (w32-imeadv--get-communication-hwnd)))
 	  (set-process-filter (get-process process-name) 'w32-imeadv--defualt-message-input-handler )
       (process-kill-without-query (get-process process-name) )
+      (add-hook 'kill-emacs-hook (lambda () (delete-process "emacs-imm32-input-proxy") t )))
 
-      (add-hook 'kill-emacs-hook (lambda () (delete-process "emacs-imm32-input-proxy") t ))
-
-
-      )
-
-    ;; 手動オーバーライドするための変数 これを指定しているときには固定値になる
-    (defvar w32-imeadv-ime-composition-font-attributes nil)
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;; IME Composition フォントの設定
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    
     ;; w32-imeadv.dll から呼び出される Lisp の関数
     (defun w32-imeadv--notify-composition-font()
-      "IMEが使うフォントをセレクトする"
+      "IMEが使うフォントを選択する。"
       (interactive)
-      (let ( ( w32-imeadv-ime-composition-font-attributes
+      (let ( (w32-imeadv-ime-composition-font-attributes
                (if (and (boundp 'w32-imeadv-ime-composition-font-attributes)
                         (not (null w32-imeadv-ime-composition-font-attributes )))
                    w32-imeadv-ime-composition-font-attributes
                  (font-face-attributes (face-font 'default nil (char-before))))) )
-        ;; ここで run-hook 
+        ;; TODO 本来はここで run-hook して、フォントの調整をする機会をユーザーに与えるべきである。
         (w32-imeadv-advertise-ime-composition-font-internal w32-imeadv-ime-composition-font-attributes )
         ))
 
@@ -34,7 +39,33 @@
       (w32-imeadv-set-openstatus-close (string-to-number (frame-parameter (selected-frame) 'window-id))))
     (add-hook 'isearch-mode-hook 'w32-imeadv-default-isearch-hook )
 
-    ;; カレントフレームに w32-imeadv を導入する
+    (defvar w32-imeadv-status-line-format (list "[　]" "[あ]") )
+    (defvar w32-imeadv-status-line (nth 0 w32-imeadv-status-line-format) )
+    (defun w32-imeadv-status-line-show ()
+      "Get a string to be displayed on the mode-line."
+      (format "%s" w32-imeadv-status-line ))
+    (setq-default mode-line-format (cons '(:eval (w32-imeadv-status-line-show)) mode-line-format))
+    ;; IME が off になったときに呼ばれるフック関数
+    (add-hook 'w32-imeadv-ime-off-hook
+              (lambda ()
+                (setq w32-imeadv-status-line (nth 0 w32-imeadv-status-line-format))
+                (force-mode-line-update)) )
+    ;; IME が on になったときに呼ばれるフック関数
+    (add-hook 'w32-imeadv-ime-on-hook
+              (lambda ()
+                (setq w32-imeadv-status-line (nth 1 w32-imeadv-status-line-format))
+                (force-mode-line-update)) )
+    
+    ;; w32-imeadv-inject-control はフレーム毎に行う必要があります。
+    (add-hook 'after-make-frame-functions
+              (lambda (theframe)
+                "w32-imeadv-inject-control"
+                (w32-imeadv-inject-control (string-to-number (frame-parameter theframe 'window-id))) ) )
+
+    ;; 今は、init.el の中なので、最初のフレームに対して、 w32-imeadv-inject-control する。
+    ;; selected-frame（現在のフレーム）にw32-imeadvを導入する
     (w32-imeadv-inject-control (string-to-number (frame-parameter (selected-frame)'window-id)))
     
-    )) ;; end of initialize w32-imeadv 
+    )) ;; end of initialize w32-imeadv
+
+;;;;;;;;;;;;;;;;; w32-imeadv の初期化ここまで ;;;;;;;;;;;;;;;;;;;
