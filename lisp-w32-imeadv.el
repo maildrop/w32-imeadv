@@ -10,11 +10,14 @@
     (let ((process-connection-type nil )
           (process-name "emacs-imm32-input-proxy"))
 	  (start-process process-name nil
-		             "~/local/bin/emacs-imm32-input-proxy.exe"
-		             (number-to-string (w32-imeadv--get-communication-hwnd)))
+                     "rundll32.exe" 
+                     (format "%s" (w32-imeadv--get-module-filename))
+                     "EntryPoint"
+                     (number-to-string (w32-imeadv--get-communication-hwnd))) 
 	  (set-process-filter (get-process process-name) 'w32-imeadv--defualt-message-input-handler )
       (process-kill-without-query (get-process process-name) )
-      (add-hook 'kill-emacs-hook (lambda () (delete-process "emacs-imm32-input-proxy") t )))
+      (add-hook 'kill-emacs-hook (lambda () (when (process-live-p (get-process "emacs-imm32-input-proxy"))
+                                              (delete-process "emacs-imm32-input-proxy") t) )))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;; IME Composition フォントの設定
