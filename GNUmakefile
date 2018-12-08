@@ -1,7 +1,7 @@
 RM=rm
 CPPFLAGS:=-DWINVER=_WIN32_WINNT_WINXP -D_WIN32_WINNT=_WIN32_WINNT_WINXP
 CXXFLAGS:=-std=c++11 -O3 -g -Wall
-W32_IMEADV_DLL_OBJS:=w32-imeadv.o w32-imeadv-on-lispy-thread.o w32-imeadv-on-ui-thread.o
+W32_IMEADV_DLL_OBJS:=w32-imeadv.o w32-imeadv-on-lispy-thread.o w32-imeadv-on-ui-thread.o w32-imeadv-rundll32.o
 emacs-imm32-input-proxy_OBJS:=emacs-imm32-input-proxy.o
 all_TARGET:=w32-imeadv.dll emacs-imm32-input-proxy.exe
 
@@ -17,6 +17,8 @@ w32-imeadv.o: w32-imeadv.cpp emacs-module.h w32-imeadv.h w32-imeadv-on-lispy-thr
 w32-imeadv-on-lispy-thread.o: w32-imeadv-on-lispy-thread.cpp w32-imeadv.h w32-imeadv-on-lispy-thread.h emacs-module.h 
 
 w32-imeadv-on-ui-thread.o: w32-imeadv-on-ui-thread.cpp w32-imeadv.h 
+
+w32-imeadv-rundll32.o: w32-imeadv-rundll32.cpp w32-imeadv.h
 
 emacs-imm32-input-proxy.o: emacs-imm32-input-proxy.cpp w32-imeadv.h
 

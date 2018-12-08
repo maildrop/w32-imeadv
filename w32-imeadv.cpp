@@ -25,14 +25,14 @@
 
 #include <cassert>
 
-#include "w32-imeadv.h"
 #include "emacs-module.h"
+#include "w32-imeadv.h"
 #include "w32-imeadv-on-lispy-thread.h"
 
 #define MODULE_NAME "w32-imeadv"
 
 extern "C"{
-  int plugin_is_GPL_compatible = 1;
+  __declspec( dllexport ) int plugin_is_GPL_compatible = 1;
 };
 
 static BOOL
@@ -707,7 +707,8 @@ static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
   return 0;
 }
 
-int emacs_module_init (struct emacs_runtime *ert) EMACS_NOEXCEPT
+__declspec( dllexport ) int
+emacs_module_init (struct emacs_runtime *ert) EMACS_NOEXCEPT
 {
   if( 0 < ert->size && 
       sizeof( emacs_runtime ) <= static_cast<size_t>(ert->size) )

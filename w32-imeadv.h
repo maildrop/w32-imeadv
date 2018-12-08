@@ -181,6 +181,5 @@ namespace imeadv{
 
 #endif /* defined( __cplusplus ) */
 
-
 #endif /* !defined( W32_IMEADV_H_HEADER_GUARD_69b36924_1b02_4782_bf0b_b8c02d62065a ) */
 
