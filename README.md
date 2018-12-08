@@ -40,7 +40,6 @@ IMM32 dynamic module for Emacs on Windows
 - emacs-imm32-input-proxy.exe を rundll32.exe を使って、dll として導入を図ること。
 （そうすれば普通に単一のdllファイルで、w32-imeadv.dll だけで処理できるようになる）
 - 異字体セレクタを考慮すること
-- 本体のemacs.exe が異常終了したときに、emacs-imm32-input-proxy.exe が残ってしまうので、emacs.exe のプロセスハンドルを開いてMsgWaitForMultipleObjectsで待つように変更すること。
 - 互換用の w32-ime.el の作成？ 必要？ （これは Lisp に精通する必要があるので遅れる）
 - daemon mode で立ち上げた場合に、どうするのかを考える（これは後回し）
 
@@ -59,6 +58,7 @@ IMM32 dynamic module for Emacs on Windows
 - DocumentFeed 機能のコード追加
 - 開いた・閉じたの通知は来るので、mode line をアップデートするように lisp コードを書くこと
 - after-make-frame-functions フックを使ってフレーム作成毎に、w32-imeadv-inject-control するようにした。
+- 本体のemacs.exe が異常終了したときに、emacs-imm32-input-proxy.exe が残ってしまうので、emacs.exe のプロセスハンドルを開いてMsgWaitForMultipleObjectsで待つように変更すること。
 
 ## Dynamic Module では実現不可能な内容
 - Lispスレッドのコモンダイアログを開くコードが、 UI ウィンドウを親として開くために一時的にデットロックする問題（GNUEmacsBug11732)
