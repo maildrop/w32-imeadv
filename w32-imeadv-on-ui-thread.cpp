@@ -245,7 +245,7 @@ w32_imeadv_wm_ime_composition( HWND hWnd , WPARAM wParam , LPARAM lParam )
               }
             }
           }
-          ImmReleaseContext( hWnd , hImc );
+          VERIFY(ImmReleaseContext( hWnd , hImc ));
           lParam &= (~GCS_RESULTSTR );
         } // end of if( hImc )
     }
@@ -272,10 +272,10 @@ w32_imeadv_wm_ime_notify( HWND hWnd, WPARAM wParam ,LPARAM  lParam )
           if( hImc )
             {
               if( ImmGetOpenStatus( hImc ) )
-                PostMessageW( communication_window_handle , WM_W32_IMEADV_OPENSTATUS_OPEN , 0 , 0 );
+                VERIFY(PostMessageW( communication_window_handle , WM_W32_IMEADV_OPENSTATUS_OPEN , 0 , 0 ));
               else
-                PostMessageW( communication_window_handle , WM_W32_IMEADV_OPENSTATUS_CLOSE , 0 , 0 );
-              ImmReleaseContext( hWnd , hImc );
+                VERIFY(PostMessageW( communication_window_handle , WM_W32_IMEADV_OPENSTATUS_CLOSE , 0 , 0 ));
+              VERIFY(ImmReleaseContext( hWnd , hImc ));
             }
         }
     }
@@ -459,8 +459,8 @@ w32_imeadv_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
       DebugOutputStatic( "w32_imeadv_wm_ime_request -> IMR_RECONVERTSTRING" );
       HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
       if( communication_window_handle ){
-        PostMessageW( communication_window_handle , WM_W32_IMEADV_REQUEST_RECONVERSION_STRING ,
-                      reinterpret_cast<WPARAM>( hWnd ), 0 );
+        VERIFY(PostMessageW( communication_window_handle , WM_W32_IMEADV_REQUEST_RECONVERSION_STRING ,
+                             reinterpret_cast<WPARAM>( hWnd ), 0 ));
       }
       return 0;
     }
@@ -487,8 +487,8 @@ w32_imeadv_openstatus_open( HWND hWnd , WPARAM wParam , LPARAM lParam )
   OutputDebugStringA("w32_imeadv_openstatus_open\n");
   HIMC hImc = ImmGetContext( hWnd );
   if( hImc ){
-    ImmSetOpenStatus( hImc , TRUE );
-    ImmReleaseContext( hWnd, hImc );
+    VERIFY(ImmSetOpenStatus( hImc , TRUE ));
+    VERIFY(ImmReleaseContext( hWnd, hImc ));
     return 1;
   }
   return 0;
@@ -500,8 +500,8 @@ w32_imeadv_openstatus_close( HWND hWnd , WPARAM wParam , LPARAM lParam )
   OutputDebugStringA("w32_imeadv_openstatus_close\n");
   HIMC hImc = ImmGetContext( hWnd );
   if( hImc ){
-    ImmSetOpenStatus( hImc, FALSE );
-    ImmReleaseContext( hWnd, hImc );
+    VERIFY(ImmSetOpenStatus( hImc, FALSE ));
+    VERIFY(ImmReleaseContext( hWnd, hImc ));
     return 1;
   }
   return 0;
@@ -735,7 +735,7 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
               }
               ImmSetCompositionFontW( hImc, &logFont );
             }
-            ImmReleaseContext( hWnd, hImc );
+            VERIFY(ImmReleaseContext( hWnd, hImc ));
           }
         }
       }
@@ -770,12 +770,12 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
               DebugOutputStatic( "w32-imeadv subclass_proc second ImmSetStateus failed");
           else
             DebugOutputStatic( "w32-imeadv subclass_proc first ImmSetStateus failed" );
-          ImmReleaseContext( hWnd , hImc );
+          VERIFY(ImmReleaseContext( hWnd , hImc ));
         }
       
       HWND communication_window_handle = (HWND)(wParam);
       SetProp( hWnd , "W32_IMM32ADV_COMWIN" , (communication_window_handle ) );
-      PostMessageW( communication_window_handle , WM_W32_IMEADV_SUBCLASSIFY , (WPARAM)( hWnd ) , 0);
+      VERIFY(PostMessageW( communication_window_handle , WM_W32_IMEADV_SUBCLASSIFY , (WPARAM)( hWnd ) , 0));
       return 1;
     }
   else if( WM_W32_IMEADV_UNSUBCLASSIFY == uMsg )
@@ -783,7 +783,7 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
       HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ) );
       if( communication_window_handle ){
         RemoveProp( hWnd , "W32_IMM32ADV_COMWIN" );
-        PostMessageW( communication_window_handle , WM_W32_IMEADV_UNSUBCLASSIFY , (WPARAM)(hWnd) , 0 );
+        VERIFY(PostMessageW( communication_window_handle , WM_W32_IMEADV_UNSUBCLASSIFY , (WPARAM)(hWnd) , 0 ));
       }
       return ::RemoveWindowSubclass( hWnd , subclass_proc , uIdSubclass);
     }
