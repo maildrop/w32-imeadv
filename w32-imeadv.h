@@ -82,17 +82,19 @@ extern "C"{
     Debug macros.
  */
 #if !defined(DEBUG_STRING00)
-#define DEBUG_STRING00( exp ) # exp 
+# define DEBUG_STRING00( exp ) # exp 
 #endif /* !defined(DEBUG_STRING00) */
+
 #if !defined(DEBUG_STRING0)
-#define DEBUG_STRING0( exp ) DEBUG_STRING00( exp )
+# define DEBUG_STRING0( exp ) DEBUG_STRING00( exp )
 #endif /* !defined(DEBUG_STRING0) */
+
 #if !defined( DEBUG_STRING )
-#define DEBUG_STRING( exp ) exp  " (@" __FILE__ ",L." DEBUG_STRING0( __LINE__ ) ")"
+# define DEBUG_STRING( exp ) exp  " (@" __FILE__ ",L." DEBUG_STRING0( __LINE__ ) ")"
 #endif /* !defined( DEBUG_STRING ) */
 
 #if !defined( DebugOutputStatic )
-#define DebugOutputStatic( exp ) do{ OutputDebugString( TEXT(DEBUG_STRING( exp )) TEXT("\n") ); }while( false )
+# define DebugOutputStatic( exp ) do{ OutputDebugString( TEXT(DEBUG_STRING( exp )) TEXT("\n") ); }while( false )
 #endif /* !defined( DebugOutputStatic ) */
 
 /* simple VERIFY macros */
