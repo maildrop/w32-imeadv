@@ -98,13 +98,13 @@ extern "C"{
 /* simple VERIFY macros */
 #if !defined( VERIFY )
 # if defined( NDEBUG )
-#if defined( __cplusplus )
-#define VERIFY( exp ) do{ std::ignore = ( exp ); }while( false )
-#else /* defined( __cplusplus ) */
-#define VERIFY( exp ) (void)( exp ) 
-#endif /* defined( __cplusplus ) */
+#  if defined( __cplusplus )
+#   define VERIFY( exp ) do{ std::ignore = ( exp ); }while( false )
+#  else /* defined( __cplusplus ) */
+#   define VERIFY( exp ) (void)( exp ) 
+#  endif /* defined( __cplusplus ) */
 # else /* defined( NDEBUG ) */ 
-#define VERIFY( exp ) do{ assert( exp ); }while( false )
+#  define VERIFY( exp ) do{ assert( exp ); }while( false )
 # endif /* defined( NDEBUG ) */
 #endif /* !defined( VERIFY ) */
 
