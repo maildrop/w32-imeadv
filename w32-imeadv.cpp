@@ -3,8 +3,6 @@
 
    わかっていたけどすげー難しい。
 
-   TODO:: 未実装の Lisp 関数
-   - "w32-imeadv--notify-documentfeed-string"
    emacs_env_25 のメンバーは、emacs_env* つまりemacs_env_26 を引数にとるのであるが本当にそれでいいのか？
 */
 
@@ -411,6 +409,26 @@ Fw32_imeadv_set_openstatus_close( emacs_env* env,
 
 template<typename emacs_env_t>
 static emacs_value
+Fw32_imeadv_get_openstatus( emacs_env* env ,
+                           ptrdiff_t nargs , emacs_value args[],
+                           void *data ) EMACS_NOEXCEPT
+{
+  if( 1 != nargs )
+    return env->intern( env, u8"nil" );
+
+  HWND hWnd = reinterpret_cast<HWND>(env->extract_integer( env , args[0] ));
+  if( IsWindow( hWnd ) ){
+    if( w32_imeadv::get_openstatus( hWnd ) ){
+      return env->intern( env, u8"t" );
+    }else{
+      return env->intern( env, u8"nil");
+    }
+  }
+  return env->intern( env, u8"nil" );
+}
+
+template<typename emacs_env_t>
+static emacs_value
 Fw32_imeadv__notify_openstatus_open( emacs_env* env,
                                      ptrdiff_t nargs , emacs_value[],
                                      void *data ) EMACS_NOEXCEPT
@@ -649,22 +667,34 @@ static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
         env->intern( env , u8"w32-imeadv-set-openstatus-open" ),
         (env->make_function( env, 1, 1 , Fw32_imeadv_set_openstatus_open<emacs_env_t> ,
                              u8"open IME require window-id\n"
+                             "\n"
                              "IME を開きます。引数には、フレームのHWNDが必要です。\n"
                              "HWND は frame-parameterの'window-id がそれに対応します\n"
                              "\n"
                              "例えば現在のフレームのIMEを開くためには、\n"
-                             "(w32-imeadv-set-openstatus-open (string-to-number (frame-parameter (selected-frame)'window-id)) )\n"
+                             "(w32-imeadv-set-openstatus-open (string-to-number (frame-parameter (selected-frame) 'window-id)))\n"
                              "とします。\n", NULL )));
   fset( env,
         env->intern( env , u8"w32-imeadv-set-openstatus-close" ),
         (env->make_function( env, 1, 1, Fw32_imeadv_set_openstatus_close<emacs_env_t> ,
                              u8"close IME require window-id\n"
+                             "\n"
                              "IMEを閉じます引数にはフレームのHWNDが必要です。\n"
                              "HWND は frame-parameterの'window-id がそれに対応します\n"
                              "\n"
                              "例えば現在のフレームのIMEを閉じるためには、\n"
-                             "(w32-imeadv-set-openstatus-close (string-to-number (frame-parameter (selected-frame)'window-id)) )\n"
+                             "(w32-imeadv-set-openstatus-close (string-to-number (frame-parameter (selected-frame) 'window-id)))\n"
                              "とします\n", NULL )));
+  fset( env,
+        env->intern( env, u8"w32-imeadv-get-openstatus" ),
+        (env->make_function( env, 1, 1, Fw32_imeadv_get_openstatus<emacs_env_t>,
+                             u8"Determines whether the IME is open or closed. require window-id\n"
+                             "\n"
+                             "IME が開いているか閉じているかを調べます \n"
+                             "\n"
+                             "(w32-imeadv-get-openstatus (string-to-number (frame-parameter (selected-frame) 'window-id)))\n"
+                             "とします" , NULL )));
+
   fset( env,
         env->intern( env , u8"w32-imeadv-advertise-ime-composition-font"),
         (env->make_function( env , 2 ,2 ,Fw32_imeadv_advertise_ime_composition_font<emacs_env_t>,

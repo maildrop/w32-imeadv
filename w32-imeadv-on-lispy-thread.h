@@ -13,6 +13,7 @@ namespace w32_imeadv {
   BOOL subclassify_hwnd( HWND hWnd , DWORD_PTR dwRefData);
   HWND get_communication_HWND();
   BOOL set_openstatus( HWND hWnd , BOOL status );
+  BOOL get_openstatus( HWND hWnd );
 };
 #endif /* defined( __cplusplus ) */
 

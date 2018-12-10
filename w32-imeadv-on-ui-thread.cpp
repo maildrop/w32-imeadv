@@ -696,6 +696,16 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
   case WM_W32_IMEADV_NULL:
     return w32_imeadv_null( hWnd , wParam , lParam );
 
+  case WM_W32_IMEADV_GET_OPENSTATUS:
+    {
+      BOOL result(FALSE);
+      HIMC hImc = ImmGetContext( hWnd );
+      if( hImc ){
+        result = ImmGetOpenStatus( hImc );
+        VERIFY(ImmReleaseContext( hWnd, hImc ));
+      }
+      return result;
+    }
   case WM_W32_IMEADV_OPENSTATUS_OPEN:
     return w32_imeadv_openstatus_open( hWnd , wParam , lParam );
 

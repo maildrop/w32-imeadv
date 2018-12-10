@@ -500,3 +500,9 @@ w32_imeadv::set_openstatus( HWND hWnd , BOOL status )
   }
   return TRUE;
 }
+
+BOOL
+w32_imeadv::get_openstatus( HWND hWnd )
+{
+  return SendMessage( hWnd , WM_W32_IMEADV_GET_OPENSTATUS , 0 , 0 );
+}
