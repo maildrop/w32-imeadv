@@ -13,10 +13,6 @@
 #include "emacs-module.h"
 #include "w32-imeadv-on-lispy-thread.h"
 
-// now implementation 
-namespace w32_imeadv {
-};
-
 static struct UserData{
   std::mutex mutex;
   ATOM windowAtom;
@@ -42,14 +38,12 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
                                               HWND hWnd, UINT uMsg , WPARAM wParam , LPARAM lParam )
 {
   if( WM_W32_IMEADV_SUBCLASSIFY == uMsg ){
-    DebugOutputStatic("w32_imeadv_lispy_communication_wnd_proc_impl WM_W32_IMEADV_SUBCLASSIFY message" );
     return 0;
   }
   
   // implementation note . この時点では、まだ、ロックがかかっていないので、user_dataの中身に触る前に、ロックをかけること
 
   if( WM_W32_IMEADV_NOTIFY_SIGNAL_HWND == uMsg ){
-    DebugOutputStatic( "w32_imeadv_lispy_communication_wnd_proc_impl WM_W32_IMEADV_NOTIFY_SIGNAL_HWND message" );
     // signal_window の設定をして終了
     if( user_data_ptr ){
       std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
@@ -121,7 +115,6 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
     
   case WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING:
     {
-      DebugOutputStatic( " WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING " );
       if( user_data_ptr ){
         std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
         if( wParam ){
@@ -262,7 +255,6 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
     
   case WM_W32_IMEADV_REQUEST_BACKWARD_CHAR:
     {
-      DebugOutputStatic( "WM_W32_IMEADV_REQUEST_BACKWARD_CHAR");
       if( user_data_ptr ){
         std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
         if( user_data_ptr->signal_window && lParam ){
@@ -419,18 +411,41 @@ HWND w32_imeadv::get_communication_HWND()
 
 BOOL w32_imeadv::subclassify_hwnd( HWND hWnd , DWORD_PTR dwRefData)
 {
-  OutputDebugStringA( "w32_imeadv::subclassify_hwnd\n" );
+  if( !hWnd )
+    return FALSE;
+  if( !IsWindow( hWnd ) )
+    return FALSE;
+
   struct {
     std::mutex mutex{};
     HHOOK subclassify_hook = 0;
   } static hook_parameter{};
-  static std::mutex this_function{};
 
+  { //  ウィンドウプロパティ W32_IMM32ADV_COMWIN が設定されているウィンドウは既に、サブクラス化している。
+    HANDLE const window_property( GetProp( hWnd, W32_IMM32ADV_COMWIN ));
+    if(window_property){
+      assert( get_communication_HWND() == window_property );
+      return TRUE;
+    }
+  }
+
+  static std::mutex this_function{};
   std::unique_lock<decltype( this_function )> this_function_lock{ this_function };
 
-  if( !hWnd ) return FALSE;
-  if( !IsWindow( hWnd ) ) return FALSE;
+  // 前回のフックがまだ実行中
+  {
+    DWORD const dwStart = GetTickCount();
+    for(;;){
+      std::unique_lock<decltype( hook_parameter.mutex )> hook_parameter_lock{ hook_parameter.mutex };
+      if(! hook_parameter.subclassify_hook )
+        break;
 
+      // If it is not released even after 10 seconds, it is regarded as a failure.
+      if(GetTickCount() - dwStart > (10 * 1000) )
+        return FALSE;
+    }
+  }
+  
   // inject UI thread
   LRESULT (CALLBACK *getMsgProc)( int, WPARAM ,LPARAM) =
     []( int code , WPARAM wParam , LPARAM lParam )->LRESULT
@@ -443,7 +458,7 @@ BOOL w32_imeadv::subclassify_hwnd( HWND hWnd , DWORD_PTR dwRefData)
           MSG* msg = reinterpret_cast<MSG*>(lParam);
           if( msg )
             do{
-              if(! msg->hwnd ) // スレッドメッセージではない。
+              if(! msg->hwnd ) // The message is thread-message. 
                 break;
               if( msg->message == WM_W32_IMEADV_SUBCLASSIFY ) // メッセージが WM_W32_IMEADV_SUBCLASSIFY である
                 {
@@ -452,20 +467,24 @@ BOOL w32_imeadv::subclassify_hwnd( HWND hWnd , DWORD_PTR dwRefData)
                   assert( GetCurrentThreadId() == GetWindowThreadProcessId( msg->hwnd , nullptr ));
 
                   // ウィンドウをサブクラス化して、いくつかのメッセージをフックする。
-                  SetWindowSubclass( msg->hwnd ,
-                                     subclass_proc ,
-                                     reinterpret_cast<UINT_PTR>( subclass_proc ),
-                                     static_cast<DWORD_PTR>( msg->lParam ) );
+                  if( ! SetWindowSubclass( msg->hwnd ,
+                                           subclass_proc ,
+                                           reinterpret_cast<UINT_PTR>( subclass_proc ),
+                                           static_cast<DWORD_PTR>( msg->lParam ) ) )
+                    {
+                      DebugOutputStatic( "SetWindowSubclass() failed" );
+                      ; /* do some error report */
+                    }
 
                   // 今、作業が終わったので、自分自身をスレッドのフックから外す
 
                   // まず先に次のフックを処理してから、
                   auto nexthook_result = ::CallNextHookEx( hook_parameter.subclassify_hook , code , wParam , lParam );
                   // 
-                  // 自分自身をサブクラス化から、外す。
+                  // 自分自身をフックチェーンから、外す。
                   if( ! UnhookWindowsHookEx( hook_parameter.subclassify_hook ) ){
 #if !defined( NDEBUG )
-                    DebugOutputStatic( "UnhookWindowsHookEx faild" );
+                    DebugOutputStatic( "UnhookWindowsHookEx() faild" );
 #endif /* !defined( NDEBUG ) */
                   }                  
                   hook_parameter.subclassify_hook = 0;
@@ -477,16 +496,20 @@ BOOL w32_imeadv::subclassify_hwnd( HWND hWnd , DWORD_PTR dwRefData)
     };
 
   DWORD target_input_thread_id = GetWindowThreadProcessId ( hWnd , nullptr );
-
+  // Is target_input_thread_id vaild ? no document in GetWindowThreadProcessId() 
   {
-    std::unique_lock<decltype( hook_parameter.mutex )> lock( hook_parameter.mutex );
-    hook_parameter.subclassify_hook =
-      SetWindowsHookEx( WH_GETMESSAGE , getMsgProc , GetModuleHandle( NULL ) , target_input_thread_id );
+    {
+      std::unique_lock<decltype( hook_parameter.mutex )> lock( hook_parameter.mutex );
+      hook_parameter.subclassify_hook =
+        SetWindowsHookEx( WH_GETMESSAGE , getMsgProc , GetModuleHandle( NULL ) , target_input_thread_id );
+      if( hook_parameter.subclassify_hook ){
+        PostMessage( hWnd , WM_W32_IMEADV_SUBCLASSIFY ,
+                     reinterpret_cast<WPARAM>(HWND( implements::get_communication_HWND_impl() )),
+                     static_cast<LPARAM>( dwRefData ) );
+        return TRUE;
+      }
+    }
   }
-  
-  PostMessage( hWnd , WM_W32_IMEADV_SUBCLASSIFY ,
-               reinterpret_cast<WPARAM>(HWND( implements::get_communication_HWND_impl() )),
-               static_cast<LPARAM>( dwRefData ) );
   return FALSE;
 }
 
