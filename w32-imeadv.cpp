@@ -598,8 +598,6 @@ static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
   {
     std::unique_lock<decltype( w32_imeadv_runtime_environment.mutex )> lock( w32_imeadv_runtime_environment.mutex );
     
-    intmax_t emacs_major_version = 0;
-    intmax_t emacs_minor_version = 0;
     { // major version 
       emacs_value major_version_value =
         my_funcall( env , u8"symbol-value" , env->intern( env, u8"emacs-major-version") );
@@ -618,14 +616,13 @@ static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
     }
 #if !defined( NDEBUG )
     std::stringstream out {};
-    out << "(" << __FILE__ << " L." << __LINE__ << ") "
-        << "w32-imeadv-system-configuration{"
-        << "emacs_major_version : " << emacs_major_version << "," 
-        << "emacs_minor_version : " << emacs_minor_version << "} ;" << std::endl;
+    out << "w32-imeadv-system-configuration{"
+        << "emacs_major_version : " << w32_imeadv_runtime_environment.emacs_major_version << "," 
+        << "emacs_minor_version : " << w32_imeadv_runtime_environment.emacs_minor_version << "} ;"
+        << "(" << __FILE__ << " L." << __LINE__ << ") " << std::endl;
     OutputDebugStringA( out.str().c_str() );
 #endif /* !defined( NDEBUG ) */
   }
-
 
   my_defvar( env, u8"w32-imeadv-ime-show-mode-line" ,
              env->intern( env, u8"t") ,
