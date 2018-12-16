@@ -15,7 +15,7 @@
                      "EntryPoint"
                      (number-to-string (w32-imeadv--get-communication-hwnd))) 
 	  (set-process-filter (get-process process-name) 'w32-imeadv--defualt-message-input-handler )
-      (process-kill-without-query (get-process process-name) )
+      (set-process-query-on-exit-flag (get-process process-name) nil)
       (add-hook 'kill-emacs-hook (lambda () (when (process-live-p (get-process "emacs-imm32-input-proxy"))
                                               (delete-process "emacs-imm32-input-proxy") t) )))
 
