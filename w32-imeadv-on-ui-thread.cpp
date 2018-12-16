@@ -12,6 +12,7 @@
 #include <vector>
 #include <new>
 #include <memory>
+#include <mutex>
 #include <tuple>
 
 #include <cstddef>
@@ -28,6 +29,9 @@ static int ignore_wm_ime_start_composition = 0; // このパラメータ プロ�
 
 static LRESULT
 w32_imeadv_wm_ime_startcomposition_emacs26( HWND hWnd , WPARAM wParam , LPARAM lParam );
+static LRESULT
+w32_imeadv_wm_ime_startcomposition_emacs27( HWND hWnd , WPARAM wParam , LPARAM lParam );
+
 static LRESULT
 w32_imeadv_wm_ime_endcomposition( HWND hWnd , WPARAM wParam , LPARAM lParam );
 static LRESULT
@@ -61,7 +65,6 @@ operator<<( std::basic_ostream<CharT,Traits>& out , const RECONVERTSTRING& recon
       << "sizeof( RECONVERTSTRING ) = " << sizeof( RECONVERTSTRING )  << "}";
   return out;
 }
-
 
 template<UINT WaitMessage , DWORD dwTimeOutMillSecond> static inline BOOL 
 my_wait_message( HWND hWnd , DWORD times)
@@ -144,15 +147,24 @@ my_wait_message( HWND hWnd , DWORD times)
   return FALSE;
 }
 
+
+
 /**
    Emacs のバグに対応するところ。
-   
 */
+
+/* emacs 27 からは、eamcs 本体が DefWindowProc を呼び出すので、
+   w32_imeadv_wm_ime_startcomposition_emacs26 は、 DefSubclassProc を呼び出した上で
+   さらに DefWindowProc を呼び出すことによって、 emacs が （意図的に） DefWindowProc を呼び出さない
+   問題にに対処している。
+   
+   emacs 27 からは emacs 本体が DefwindowProc を呼び出すので、
+   w32_imeadv_wm_ime_startcomposition_emacs27 は、 DefwindowProc を呼び出すのみである */
+
 static LRESULT
 w32_imeadv_wm_ime_startcomposition_emacs26( HWND hWnd , WPARAM wParam , LPARAM lParam )
 {
   // deny break in WM_IME_STARTCOMPOSITION , call DefWindowProc 
-  // Emacs のバージョンで切り分けるという作業をしないとダメですよ
   LRESULT const result = ::DefSubclassProc( hWnd , WM_IME_STARTCOMPOSITION , wParam , lParam );
 
   // ここでの問題点は、GNU版の Emacs は Lispスレッドが、何度も WM_IME_STARTCOMPOSITION を連打するという問題がある。
@@ -167,15 +179,12 @@ w32_imeadv_wm_ime_startcomposition_emacs26( HWND hWnd , WPARAM wParam , LPARAM l
   if( ignore_wm_ime_start_composition ){
     return result;
   }else{
-    //OutputDebugStringA("w32_imeadv_wm_ime_startcomposition effective\n");
-
     // ここでフォントの要求をする
     HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
     if( communication_window_handle ){
       if( SendMessageW( communication_window_handle , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT ,
                         reinterpret_cast<WPARAM>(hWnd) ,lParam ) ){
         // Wait Conversion Message
-        //DebugOutputStatic( "IMR_COMPOSITIONFONT waiting message" );
         ignore_wm_ime_start_composition = 1;
         my_wait_message<WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT>(hWnd);
         return DefWindowProc( hWnd, WM_IME_STARTCOMPOSITION , wParam , lParam );
@@ -187,6 +196,31 @@ w32_imeadv_wm_ime_startcomposition_emacs26( HWND hWnd , WPARAM wParam , LPARAM l
     }
   }
   return result;
+}
+
+static LRESULT
+w32_imeadv_wm_ime_startcomposition_emacs27( HWND hWnd , WPARAM wParam , LPARAM lParam )
+{
+  LRESULT const result = ::DefSubclassProc( hWnd , WM_IME_STARTCOMPOSITION , wParam , lParam );
+  if( ignore_wm_ime_start_composition ){
+    return result;
+  }else{
+    // ここでフォントの要求をする
+    HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
+    if( communication_window_handle ){
+      if( SendMessageW( communication_window_handle , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT ,
+                        reinterpret_cast<WPARAM>(hWnd) ,lParam ) ){
+        // Wait Conversion Message
+        ignore_wm_ime_start_composition = 1;
+        my_wait_message<WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT>(hWnd);
+      }else{
+        DebugOutputStatic( "SendMessage WM_W32_IMEADV_REQUEST_COMPOSITION_FONT failed" );
+      }
+    }else{
+      DebugOutputStatic( " communication_window_handle is 0 " );
+    }
+    return result;
+  }
 }
 
 static LRESULT
@@ -679,8 +713,23 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
     return w32_imeadv_wm_ime_composition( hWnd , wParam , lParam );
 
   case WM_IME_STARTCOMPOSITION:
-    return w32_imeadv_wm_ime_startcomposition_emacs26( hWnd ,wParam , lParam);
-
+    {
+      bool emacs_is_broken_ime_startcomposition{false};
+      {
+        std::unique_lock<decltype( w32_imeadv_runtime_environment.mutex )>
+          lock( w32_imeadv_runtime_environment.mutex );
+        emacs_is_broken_ime_startcomposition = 
+          ! (26 < w32_imeadv_runtime_environment.emacs_major_version );
+      }
+      if( ! emacs_is_broken_ime_startcomposition )
+        {
+          return w32_imeadv_wm_ime_startcomposition_emacs27( hWnd ,wParam , lParam);
+        }
+      else
+        {
+          return w32_imeadv_wm_ime_startcomposition_emacs26( hWnd ,wParam , lParam);
+        }
+    }
   case WM_IME_ENDCOMPOSITION:
     return w32_imeadv_wm_ime_endcomposition( hWnd, wParam , lParam );
 

@@ -20,6 +20,7 @@
 #include <array>
 #include <utility>
 #include <algorithm>
+#include <mutex>
 
 #include <cassert>
 
@@ -28,6 +29,8 @@
 #include "w32-imeadv-on-lispy-thread.h"
 
 #define MODULE_NAME "w32-imeadv"
+
+struct w32_imeadv_runtime_environment_tag w32_imeadv_runtime_environment{};
 
 extern "C"{
   __declspec( dllexport ) int plugin_is_GPL_compatible = 1;
@@ -586,29 +589,33 @@ Fw32_imeadv__notify_reconversion_string( emacs_env *env,
   return env->intern( env, u8"nil" );
 }
 
+
+
 template<typename emacs_env_t>
 static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
 {
   assert( env );
-#if !defined( NDEBUG )
-  { // これ本当は w32-imeadv-initialize の中でやった方がいいんじゃないかと思う
+  {
+    std::unique_lock<decltype( w32_imeadv_runtime_environment.mutex )> lock( w32_imeadv_runtime_environment.mutex );
+    
     intmax_t emacs_major_version = 0;
     intmax_t emacs_minor_version = 0;
     { // major version 
       emacs_value major_version_value =
         my_funcall( env , u8"symbol-value" , env->intern( env, u8"emacs-major-version") );
       if( env->is_not_nil( env , major_version_value ) ){
-        emacs_major_version = env->extract_integer( env , major_version_value );
+        w32_imeadv_runtime_environment.emacs_major_version = 
+          env->extract_integer( env , major_version_value );
       }
     }
     { // minor version
       emacs_value minor_version_value =
         my_funcall( env , u8"symbol-value" , env->intern( env , u8"emacs-minor-version"));
       if( env->is_not_nil( env , minor_version_value ) ){
-        emacs_minor_version = env->extract_integer( env , minor_version_value );
+        w32_imeadv_runtime_environment.emacs_minor_version =
+          env->extract_integer( env , minor_version_value );
       }
     }
-
 #if !defined( NDEBUG )
     std::stringstream out {};
     out << "(" << __FILE__ << " L." << __LINE__ << ") "
@@ -617,9 +624,8 @@ static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
         << "emacs_minor_version : " << emacs_minor_version << "} ;" << std::endl;
     OutputDebugStringA( out.str().c_str() );
 #endif /* !defined( NDEBUG ) */
-
   }
-#endif /* !defined( NDEBUG ) */
+
 
   my_defvar( env, u8"w32-imeadv-ime-show-mode-line" ,
              env->intern( env, u8"t") ,

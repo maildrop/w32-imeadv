@@ -1,4 +1,5 @@
-﻿#if !defined( W32_IMEADV_H_HEADER_GUARD_69b36924_1b02_4782_bf0b_b8c02d62065a )
+﻿#include <mutex>
+#if !defined( W32_IMEADV_H_HEADER_GUARD_69b36924_1b02_4782_bf0b_b8c02d62065a )
 #define W32_IMEADV_H_HEADER_GUARD_69b36924_1b02_4782_bf0b_b8c02d62065a 1
 
 /**
@@ -59,6 +60,7 @@ extern "C"{
     wchar_t       lfFaceName[ LF_FACESIZE ]; // important ! wide char 
   };
 
+
   /* WM_W32_IMEADV_REQUEST_BACKWARD_CHAR */
   struct w32_imeadv_request_backward_char_lparam{
     HWND hWnd; // request ui window handle
@@ -75,7 +77,15 @@ extern "C"{
   LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM lParam ,
                                     UINT_PTR uIdSubclass, DWORD_PTR dwRefData );
 
-
+#if defined( __cplusplus )
+  /* emacs version information */
+  struct w32_imeadv_runtime_environment_tag{
+    std::mutex mutex;
+    intmax_t emacs_major_version;
+    intmax_t emacs_minor_version;
+  } extern w32_imeadv_runtime_environment;
+#endif /* defined( __cplusplus ) */
+  
 #if defined( __cplusplus )
 }
 #endif /* defined( __cplusplus ) */
