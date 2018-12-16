@@ -478,7 +478,7 @@ w32_imeadv_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
         return 0;
       }
       
-      DebugOutputStatic( "w32_imeadv_wm_ime_request -> IMR_QUERYCHARPOSITION" );
+      //DebugOutputStatic( "w32_imeadv_wm_ime_request -> IMR_QUERYCHARPOSITION" );
       IMECHARPOSITION *imecharposition = reinterpret_cast<IMECHARPOSITION*>( lParam );
       assert( sizeof( IMECHARPOSITION ) == imecharposition->dwSize );
       if( sizeof( IMECHARPOSITION ) == imecharposition->dwSize ){
@@ -490,7 +490,7 @@ w32_imeadv_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
     
   case IMR_RECONVERTSTRING:
     {
-      DebugOutputStatic( "w32_imeadv_wm_ime_request -> IMR_RECONVERTSTRING" );
+      //DebugOutputStatic( "w32_imeadv_wm_ime_request -> IMR_RECONVERTSTRING" );
       HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
       if( communication_window_handle ){
         VERIFY(PostMessageW( communication_window_handle , WM_W32_IMEADV_REQUEST_RECONVERSION_STRING ,
@@ -500,9 +500,12 @@ w32_imeadv_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
     }
   default:
     {
+#if !defined( NDEBUG )
       std::stringstream out{};
-      out << "WM_IME_REQUEST " << wParam << std::endl;
+      out << "WM_IME_REQUEST " << wParam << " "
+          << "(@" __FILE__ << ",L." << __LINE__ << ")" << std::endl;
       OutputDebugStringA( out.str().c_str() );
+#endif /* !defined( NDEBUG ) */
     }
     break;
   }
