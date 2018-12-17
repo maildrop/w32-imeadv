@@ -80,14 +80,14 @@ my_wait_message( HWND hWnd , DWORD times)
   assert( GetCurrentThreadId() == GetWindowThreadProcessId( hWnd, nullptr ) );
   
   SUBCLASSPROC const subclass_proc
-    = [](HWND hWnd, UINT uMsg , WPARAM wParam , LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) -> LRESULT {
-        std::ignore = uIdSubclass;
+    = [](HWND hWnd, UINT uMsg , WPARAM wParam , LPARAM lParam, UINT_PTR , DWORD_PTR dwRefData) -> LRESULT {
         if( WaitMessage == uMsg ){
           DWORD *ptr = reinterpret_cast<DWORD*>( dwRefData );
           --(*ptr);
         }
         return ::DefSubclassProc( hWnd, uMsg , wParam , lParam );
       };
+  
   UINT_PTR const uIdSubclass = reinterpret_cast<UINT_PTR const >( subclass_proc );
 
   /* not throw std::bad_alloc in this case  */
@@ -95,7 +95,7 @@ my_wait_message( HWND hWnd , DWORD times)
   if( ! static_cast<bool>( waiting_data ) ){
     return FALSE;
   }
-  
+
   if( ::SetWindowSubclass( hWnd , subclass_proc , uIdSubclass , reinterpret_cast<DWORD_PTR>(waiting_data.get()) ) ){
     struct raii{
       HWND const hWnd;
@@ -109,19 +109,30 @@ my_wait_message( HWND hWnd , DWORD times)
           this->waiting_data.release();
         }
       }
-    } remove_window_subclass_raii = { hWnd , subclass_proc , uIdSubclass , waiting_data};
+    } remove_window_subclass_raii = { hWnd , subclass_proc , uIdSubclass , waiting_data };
     
-    while( *waiting_data ){
+    while( static_cast<bool>( waiting_data ) && *waiting_data ){
+      /* 
+         ここ、なぜMsgWaitForMultipleObjects では無く、MsgWaitForMutipleObjectsEx なのかは
+         @See Windows via C/C++ ver4. Chaper 26. Section 4. 
+         和名 Advanced Windows ver 4. pp 919 
+       */
       typedef std::integral_constant<DWORD , 0> nObjects;
       DWORD const wait_result =
-        MsgWaitForMultipleObjects( nObjects::value  , nullptr ,FALSE,
-                                   dwTimeOutMillSecond , QS_SENDMESSAGE  );
+        MsgWaitForMultipleObjectsEx( nObjects::value  , nullptr , dwTimeOutMillSecond ,
+                                     QS_SENDMESSAGE  , MWMO_INPUTAVAILABLE );
       switch( wait_result ){
       case (WAIT_OBJECT_0 + nObjects::value):
         {
           MSG msg = {};
           // Process only messages sent with SendMessage
-          while( PeekMessageW( &msg , NULL , WM_NULL ,WM_NULL , PM_REMOVE | PM_QS_SENDMESSAGE ) ){
+          while( PeekMessageW( &msg , NULL , 0 , 0 , PM_REMOVE | PM_QS_SENDMESSAGE ) ){
+            if( WM_QUIT == msg.message ){
+              // これは起こらない状態と思うが、今メッセージポンプの内側でWM_QUITメッセージを受け取ったので、
+              // 外側のメッセージポンプにWM_QUITを伝播させる。
+              PostQuitMessage( msg.wParam );
+              break;
+            }
             TranslateMessage( &msg );
             DispatchMessageW( &msg );
           }
@@ -130,23 +141,24 @@ my_wait_message( HWND hWnd , DWORD times)
       case WAIT_TIMEOUT:
         {
           std::wstringstream out{};
-          out << "** WARNNING ** my_wait_message TIME_OUT! " 
+          out << "** WARNNING ** my_wait_message TIME_OUT! "
+              << "(" << *waiting_data << ")" 
               << "WaitMessage=" << WaitMessage << " "
               << __PRETTY_FUNCTION__
               << DEBUG_STRING( " " ) << std::endl;
           OutputDebugStringW( out.str().c_str() );
           return FALSE;
         }
-        goto end_of_loop;
       default:
         if( (WAIT_ABANDONED_0 <= wait_result) && (wait_result < (WAIT_ABANDONED_0 + nObjects::value)) ){
           // nObjects::value = 0
+#if !defined( NDEBUG )
           ::DebugBreak();
+#endif /* !defined( NDEBUG ) */
         }
-        goto end_of_loop;
+        return FALSE;
       }
     }
-  end_of_loop:
     return TRUE;
   }
   return FALSE;

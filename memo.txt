@@ -37,6 +37,10 @@ Emacs本体側のコード変更に弱かったり、パッチ当てるのと変
  なお、w32のファイル変更の通知などは、スレッドメッセージで届くので、ダイアログを開いている間は消失する。
 これは信頼性がないのでリライトする必要があるだろうなと思った。
 
+WindowMessageの同期処理
+my_wait_message の処理が怪しかったので、Advanced Windows (原題 Windows Via C/C++) の正しい使い方にしてみた。
+MsgWaitForMultipleObjectsEx で、MWMO_INPUTAVAILABLE フラグを使う方法
+
 
 ;; IME の開け閉めコード
 (w32-imeadv-set-openstatus-open (string-to-number (frame-parameter (selected-frame)'window-id)) )
@@ -46,5 +50,3 @@ Emacs本体側のコード変更に弱かったり、パッチ当てるのと変
 ;; w32-imeadv--get-module-filename という関数を作ったので、多分こんな感じにするんでしょう
 (list "rundll32.exe" (w32-imeadv--get-module-filename) "imeadv_imm32_input_proxy" 12345)
 
-TODO
-after-make-frame-functions を使って フレーム作成後に subclassify のフックをかけるようにしよう
