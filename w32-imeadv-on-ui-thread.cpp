@@ -166,66 +166,50 @@ w32_imeadv_wm_ime_startcomposition_emacs26( HWND hWnd , WPARAM wParam , LPARAM l
 {
   // deny break in WM_IME_STARTCOMPOSITION , call DefWindowProc 
   LRESULT const result = ::DefSubclassProc( hWnd , WM_IME_STARTCOMPOSITION , wParam , lParam );
-
   // ここでの問題点は、GNU版の Emacs は Lispスレッドが、何度も WM_IME_STARTCOMPOSITION を連打するという問題がある。
   // これはバグだと思うが、オリジナルを修正しないようにするためには、ここでフィルタする
-
-  /* ignore_wm_ime_start_composition を 1にするタイミングについては、
-     無節操に、 WM_IME_STARTCOMPOSITION を送る GNU Emacs があるので
-     これを止めてよいタイミングは、フォントの設定を送ることができたときである。
-     とする。 
-     TODO : この前提は間違っているので修正が必要  */
-
   if( ignore_wm_ime_start_composition ){
     return result;
-  }else{
-    // ここでフォントの要求をする
-    HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
-    if( communication_window_handle ){
-      if( SendMessageW( communication_window_handle , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT ,
-                        reinterpret_cast<WPARAM>(hWnd) ,lParam ) ){
-        // Wait Conversion Message
-        ignore_wm_ime_start_composition = 1;
-        my_wait_message<WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT>(hWnd);
-        return DefWindowProc( hWnd, WM_IME_STARTCOMPOSITION , wParam , lParam );
-      }else{
-        DebugOutputStatic( "SendMessage WM_W32_IMEADV_REQUEST_COMPOSITION_FONT failed" );
-      }
-    }else{
-      DebugOutputStatic( " communication_window_handle is 0 " );
-    }
   }
-  return result;
+  ignore_wm_ime_start_composition = 1;
+  /* この関数は SubClassProc であって、「DefSubclassProc 呼び出し、DefWindowProc は呼び出さない」というのが通常の
+     作り方であるが、そもそもの問題点は、(emacs 26 までは) ウィンドウプロシージャがDefWindowProc を呼び出さないために
+     IMEのover-the-spot 変換が動作しないという事であった。
+     ここでは、 DefSubclassProc を呼び出した上に、DefWindowProc で動作を変更するというのが最も重要な仕事である。 */
+  return ::DefWindowProc( hWnd , WM_IME_STARTCOMPOSITION , wParam , lParam );
 }
 
+/*  emacs 27 では、WM_IME_STARTCOMPOSITION で DefWindowProc が呼び出されるように変更された。
+    そのためここで特段に処理をする必要は無い。 */
 static LRESULT
 w32_imeadv_wm_ime_startcomposition_emacs27( HWND hWnd , WPARAM wParam , LPARAM lParam )
 {
   LRESULT const result = ::DefSubclassProc( hWnd , WM_IME_STARTCOMPOSITION , wParam , lParam );
   if( ignore_wm_ime_start_composition ){
     return result;
-  }else{
-    // ここでフォントの要求をする
-    HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
-    if( communication_window_handle ){
-      if( SendMessageW( communication_window_handle , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT ,
-                        reinterpret_cast<WPARAM>(hWnd) ,lParam ) ){
-        // Wait Conversion Message
-        ignore_wm_ime_start_composition = 1;
-        my_wait_message<WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT>(hWnd);
-      }else{
-        DebugOutputStatic( "SendMessage WM_W32_IMEADV_REQUEST_COMPOSITION_FONT failed" );
-      }
-    }else{
-      DebugOutputStatic( " communication_window_handle is 0 " );
-    }
-    return result;
   }
+  ignore_wm_ime_start_composition = 1;
+  return result;
 }
 
 static LRESULT
 w32_imeadv_wm_ime_composition( HWND hWnd , WPARAM wParam , LPARAM lParam )
 {
+  do{ /* The request of IME Composition font setting */
+    HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
+    if( !communication_window_handle ){
+      DebugOutputStatic( " communication_window_handle is 0 " );
+      break;
+    }
+    /*The request of IME Composition font setting dose not need to be a synchronous method.
+      So use PostMessage() here. */
+    if( PostMessageW( communication_window_handle , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT ,
+                      reinterpret_cast<WPARAM>(hWnd) ,lParam ) ){
+    }else{
+      DebugOutputStatic( "SendMessage WM_W32_IMEADV_REQUEST_COMPOSITION_FONT failed" );
+    }
+  }while( false );
+
   if( lParam & GCS_RESULTSTR )
     {
       HIMC hImc = ImmGetContext( hWnd );

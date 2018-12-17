@@ -40,9 +40,8 @@ IMM32 dynamic module for Emacs on Windows
 - daemon mode で立ち上げた場合に、どうするのかを考える（これは後回し）
 
 ## BUG
-- まだ、IME側のフォント変更のタイミングが怪しい。UIからデフォルトフォントを変更した後、最初の変換はIME側に行ってない。
-- 大量のデバッグログを OutputDebugString 側に吐き出す。
 - そもそも、まだ「動いた」のレベルである。
+- まだ、wait message が timeout する場合がある。原因は調査中だが WM_IME* 周りのメッセージが PostMessage で送られてきているのかも知れない。メッセージの待機処理をもう少し練る必要がある。
 
 ## できたこと
 - WM_IME_ 及びその他のウィンドウメッセージを収奪
@@ -57,6 +56,11 @@ IMM32 dynamic module for Emacs on Windows
 - 本体のemacs.exe が異常終了したときに、emacs-imm32-input-proxy.exe が残ってしまうので、emacs.exe のプロセスハンドルを開いてMsgWaitForMultipleObjectsで待つように変更すること。
 - emacs-imm32-input-proxy.exe を rundll32.exe を使って、dll として導入を図ること。
 （そうすれば普通に単一のdllファイルで、w32-imeadv.dll だけで処理できるようになる）
+
+- デバッグログは、マクロNDEBUG が定義されているときは出力されないように変更されました。そして、デフォルトの指示はNDEBUG にする
+- UIからデフォルトフォントを変更した後、最初の変換ではフォントの指定が上手くいっていなかった問題に対処した
+  この問題は、IMEを開いた状態でデフォルトフォントを変更すると、WM_IME_STARTCOMPOSITIONが送られないのでIMEのフォントを変更するようになっていない問題があった。このために、WM_IME_COMPOSITIONでフォントの指定を指示するようにすると共に、フォントの指定そのものは同期メソッドである必要が無いのでLispスレッドへはPostMessageでメッセージを投げるようにして対応してみた。
+
 
 ## Dynamic Module では実現不可能な内容
 - Lispスレッドのコモンダイアログを開くコードが、 UI ウィンドウを親として開くために一時的にデットロックする問題（GNUEmacsBug11732)
