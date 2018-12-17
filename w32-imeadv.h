@@ -10,7 +10,7 @@
 /* Windows window proerty Key (value is lisp communication window handle ) */
 #define W32_IMM32ADV_COMWIN  "W32_IMM32ADV_COMWIN"
 
-#define WM_W32_IMEADV_START                       (WM_APP + 828)
+#define WM_W32_IMEADV_START                       ((WM_APP) + 828)
 #define WM_W32_IMEADV_NULL                        (WM_W32_IMEADV_START + 0)
 #define WM_W32_IMEADV_SUBCLASSIFY                 (WM_W32_IMEADV_START + 1)
 #define WM_W32_IMEADV_UNSUBCLASSIFY               (WM_W32_IMEADV_START + 2)

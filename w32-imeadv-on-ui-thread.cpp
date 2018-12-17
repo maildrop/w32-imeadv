@@ -115,13 +115,13 @@ my_wait_message( HWND hWnd , DWORD times)
       typedef std::integral_constant<DWORD , 0> nObjects;
       DWORD const wait_result =
         MsgWaitForMultipleObjects( nObjects::value  , nullptr ,FALSE,
-                                   dwTimeOutMillSecond , QS_SENDMESSAGE | QS_PAINT );
+                                   dwTimeOutMillSecond , QS_SENDMESSAGE  );
       switch( wait_result ){
       case (WAIT_OBJECT_0 + nObjects::value):
         {
           MSG msg = {};
           // Process only messages sent with SendMessage
-          while( PeekMessageW( &msg , NULL , WM_NULL ,WM_NULL , PM_REMOVE | PM_QS_SENDMESSAGE | PM_QS_PAINT ) ){
+          while( PeekMessageW( &msg , NULL , WM_NULL ,WM_NULL , PM_REMOVE | PM_QS_SENDMESSAGE ) ){
             TranslateMessage( &msg );
             DispatchMessageW( &msg );
           }
@@ -129,7 +129,12 @@ my_wait_message( HWND hWnd , DWORD times)
         }
       case WAIT_TIMEOUT:
         {
-          DebugOutputStatic( "** WARNNING ** my_wait_message TIME_OUT!" );
+          std::wstringstream out{};
+          out << "** WARNNING ** my_wait_message TIME_OUT! " 
+              << "WaitMessage=" << WaitMessage << " "
+              << __PRETTY_FUNCTION__
+              << DEBUG_STRING( " " ) << std::endl;
+          OutputDebugStringW( out.str().c_str() );
           return FALSE;
         }
         goto end_of_loop;
