@@ -148,8 +148,8 @@ EntryPointW( HWND rundll_hWnd , HINSTANCE hInstance , LPWSTR lpszCmdLine , int n
               const std::array< HANDLE , 1 > selecter = { emacsProcessHandle };
               for(;;){
                 DWORD msgWaitResult =
-                  MsgWaitForMultipleObjects( static_cast<DWORD>(selecter.size()) , selecter.data() ,
-                                             FALSE , INFINITE , QS_ALLINPUT );
+                  MsgWaitForMultipleObjectsEx( static_cast<DWORD>(selecter.size()) , selecter.data() ,
+                                               INFINITE , QS_ALLINPUT , MWMO_INPUTAVAILABLE );
                 switch( msgWaitResult ){
                 case (WAIT_OBJECT_0 + 0 ): // emacsProcessHandle が signal 状態に移行した
                   PostMessage( hWnd , WM_W32_IMEADV_END , 0 , 0 );
