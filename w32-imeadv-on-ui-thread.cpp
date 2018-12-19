@@ -640,7 +640,7 @@ w32_imeadv_ui_perform_reconversion( HWND hWnd, WPARAM wParam , LPARAM lParam )
               ++p; // UTF-16 surroage pair;
             }
           }
-          if( 0< nCharacter ){
+          if( 0 < nCharacter ){
             if( communication_window_handle ){
               w32_imeadv_request_backward_char_lparam backward_char = { hWnd, nCharacter };
               auto times = SendMessage( communication_window_handle , WM_W32_IMEADV_REQUEST_BACKWARD_CHAR ,
