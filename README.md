@@ -42,7 +42,6 @@ IMM32 dynamic module for Emacs on Windows
 
 ## BUG
 - そもそも、まだ「動いた」のレベルである。
-- まだ、wait message が timeout する場合がある。原因は調査中だが WM_IME* 周りのメッセージが PostMessage で送られてきているのかも知れない。メッセージの待機処理をもう少し練る必要がある。 これは Windows via C/C++ に書いてあったので「正しい」処理に変更した。現在検証中
 
 
 ## できたこと
@@ -63,6 +62,9 @@ IMM32 dynamic module for Emacs on Windows
 - UIからデフォルトフォントを変更した後、最初の変換ではフォントの指定が上手くいっていなかった問題に対処した
   この問題は、IMEを開いた状態でデフォルトフォントを変更すると、WM_IME_STARTCOMPOSITIONが送られないのでIMEのフォントを変更するようになっていない問題があった。このために、WM_IME_COMPOSITIONでフォントの指定を指示するようにすると共に、フォントの指定そのものは同期メソッドである必要が無いのでLispスレッドへはPostMessageでメッセージを投げるようにして対応してみた。
 
+## 修正済み
+- まだ、wait message が timeout する場合がある。原因は調査中だが WM_IME* 周りのメッセージが PostMessage で送られてきているのかも知れない。メッセージの待機処理をもう少し練る必要がある。 これは Windows via C/C++ に書いてあったので「正しい」処理に変更した。
+-- 「正しい処理」とは別に、SendMessageで送られてきたメッセージの回数を数え上げるところで、最初のSendMessageのブロック中にSendMessage が戻される場合があり、回数を正しく数えていなかった。
 
 ## Dynamic Module では実現不可能な内容
 - Lispスレッドのコモンダイアログを開くコードが、 UI ウィンドウを親として開くために一時的にデットロックする問題（GNUEmacsBug11732)
