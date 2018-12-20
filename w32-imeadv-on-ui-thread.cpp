@@ -52,7 +52,6 @@ w32_imeadv_notify_reconversion_string( HWND hWnd , WPARAM wParam , LPARAM lParam
 static LRESULT
 w32_imeadv_ui_perform_reconversion( HWND hWnd, WPARAM wParam , LPARAM lParam );
 
-
 template<typename CharT,typename Traits >
 std::basic_ostream<CharT,Traits>&
 operator<<( std::basic_ostream<CharT,Traits>& out , const RECONVERTSTRING& reconv )
@@ -69,7 +68,6 @@ operator<<( std::basic_ostream<CharT,Traits>& out , const RECONVERTSTRING& recon
   return out;
 }
 
-// やっぱりこれバグってる気がするな。
 template<UINT WaitMessage , typename message_transporter_t, DWORD dwTimeOutMillSecond> static inline BOOL 
 my_wait_message( HWND hWnd , const message_transporter_t& message_transporter)
 {
@@ -86,18 +84,7 @@ my_wait_message( HWND hWnd , const message_transporter_t& message_transporter)
     = [](HWND hWnd, UINT uMsg , WPARAM wParam , LPARAM lParam, UINT_PTR , DWORD_PTR dwRefData) -> LRESULT {
         if( WaitMessage == uMsg ){
           int* ptr = reinterpret_cast<int*>( dwRefData );
-          --(*ptr);
-#if !defined( NDEBUG )
-          {
-            std::wstringstream out;
-            out << "decrement " << *ptr
-                << DEBUG_STRING("") << std::endl;
-            OutputDebugStringW( out.str().c_str() );
-          }
-          if( *ptr < 0 ){
-            DebugOutputStatic("negative value");
-          }
-#endif /* !defined( NDEBUG ) */
+          ++(*ptr);
         }
         return ::DefSubclassProc( hWnd, uMsg , wParam , lParam );
       };
@@ -131,11 +118,10 @@ my_wait_message( HWND hWnd , const message_transporter_t& message_transporter)
     assert( static_cast<bool>( waiting_data ) ); // 上の条件式ではねてる
 
     // message_transporter の中で SendMessage していると、そのSendMessage の最中にSendMessage が戻ってくる可能性がある。
-    // そうすると、 既に、waiting_data が負数になっている場合がある。
-    *waiting_data += message_transporter(); 
-    
+    int const times = message_transporter(); ;
+    // つまりこの時点 waiting_data が 0 とは限らない
     int wakeup_chance = 3;
-    while( *waiting_data ){
+    while( *waiting_data < times ){
       if( !wakeup_chance )
         break;
       /* 
