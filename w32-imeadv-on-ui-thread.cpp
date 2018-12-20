@@ -37,8 +37,13 @@ w32_imeadv_wm_ime_startcomposition_emacs27( HWND hWnd , WPARAM wParam , LPARAM l
 
 static LRESULT
 w32_imeadv_wm_ime_endcomposition( HWND hWnd , WPARAM wParam , LPARAM lParam );
+
+static LRESULT
+CALLBACK w32_imeadv_ui_delete_reconversion_region( HWND hWnd, UINT message , WPARAM wParam , LPARAM lParam ,
+                                                   UINT_PTR uIdSubclass, DWORD_PTR dwRefData );
 static LRESULT
 w32_imeadv_wm_ime_composition( HWND hWnd , WPARAM wParam , LPARAM lParam );
+
 static LRESULT
 w32_imeadv_wm_ime_notify( HWND hWnd, WPARAM wParam ,LPARAM  lParam );
 static LRESULT
@@ -128,7 +133,7 @@ my_wait_message( HWND hWnd , const message_transporter_t& message_transporter)
          ここ、なぜMsgWaitForMultipleObjects では無く、MsgWaitForMutipleObjectsEx なのかは
          @See Windows via C/C++ ver4. Chaper 26. Section 4. 
          和名 Advanced Windows ver 4. pp 919 
-       */
+      */
       typedef std::integral_constant<DWORD , 0> nObjects;
       DWORD const wait_result =
         MsgWaitForMultipleObjectsEx( nObjects::value  , nullptr , dwTimeOutMillSecond ,
@@ -592,6 +597,29 @@ w32_imeadv_notify_reconversion_string( HWND hWnd , WPARAM wParam , LPARAM lParam
   return result;
 }
 
+static LRESULT CALLBACK w32_imeadv_ui_delete_reconversion_region( HWND hWnd, UINT message , WPARAM wParam , LPARAM lParam ,
+                                                                  UINT_PTR uIdSubclass, DWORD_PTR dwRefData )
+{
+  if( WM_IME_COMPOSITION == message ){
+    if( lParam & GCS_RESULTSTR ){ // 文字が確定したので、消す
+      HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
+      if( communication_window_handle ){
+        if( dwRefData ){
+          w32_imeadv_request_delete_char_lparam delete_char = { hWnd , size_t( dwRefData ) };
+          my_wait_message<WM_W32_IMEADV_NOTIFY_DELETE_CHAR>( hWnd , [&]()->int{
+                                                                      return static_cast<int>(SendMessage( communication_window_handle ,
+                                                                                                           WM_W32_IMEADV_REQUEST_DELETE_CHAR ,
+                                                                                                           reinterpret_cast<WPARAM>( hWnd ),
+                                                                                                           reinterpret_cast<LPARAM>( &delete_char ) ));
+                                                                    });
+        }
+      }
+      VERIFY( RemoveWindowSubclass( hWnd , w32_imeadv_ui_delete_reconversion_region , uIdSubclass ) );
+    }
+  }
+  return ::DefSubclassProc( hWnd, message , wParam , lParam );
+}
+
 static LRESULT
 w32_imeadv_ui_perform_reconversion( HWND hWnd, WPARAM wParam , LPARAM lParam )
 {
@@ -684,17 +712,9 @@ w32_imeadv_ui_perform_reconversion( HWND hWnd, WPARAM wParam , LPARAM lParam )
             }
           }
         }
-        
-        if( ! ImmSetCompositionStringW( hImc, SCS_SETRECONVERTSTRING ,
-                                        (LPVOID)memory_block.get(),
-                                        (DWORD)memory_block_size ,
-                                        nullptr , 0 ) ){
-          DebugOutputStatic( "ImmSetCompositionStringW SCS_SETRECONVERTSTRING failed" );
-          break;
-        }
-        
+
         {
-          // 再変換文字は、後でIMEが投入してくるので、ここで消す
+          // 再変換文字は、後でIMEが投入してくるので、文字が確定された時に消すようにサブクラス化をかけておく
           wchar_t * const lft =
             reinterpret_cast<wchar_t*>( (reinterpret_cast<BYTE*>(text)) + reconv->dwCompStrOffset );
           wchar_t * const rgt = lft + reconv->dwCompStrLen;
@@ -705,17 +725,23 @@ w32_imeadv_ui_perform_reconversion( HWND hWnd, WPARAM wParam , LPARAM lParam )
             }
           }
           if( 0 < nCharacter ){
-            if( communication_window_handle ){
-              w32_imeadv_request_delete_char_lparam delete_char = { hWnd , nCharacter };
-              my_wait_message<WM_W32_IMEADV_NOTIFY_DELETE_CHAR>( hWnd , [&]()->int{
-                                                                          return static_cast<int>(SendMessage( communication_window_handle ,
-                                                                                                               WM_W32_IMEADV_REQUEST_DELETE_CHAR ,
-                                                                                                               reinterpret_cast<WPARAM>( hWnd ),
-                                                                                                               reinterpret_cast<LPARAM>( &delete_char ) ));
-                                                                        });
+            if( SetWindowSubclass( hWnd , w32_imeadv_ui_delete_reconversion_region ,
+                                   reinterpret_cast<UINT_PTR>( w32_imeadv_ui_delete_reconversion_region ),
+                                   DWORD_PTR( nCharacter ) ) ){
+
             }
           }
         }
+
+        // 準備が整ったので、再変換を実行する
+        if( ! ImmSetCompositionStringW( hImc, SCS_SETRECONVERTSTRING ,
+                                        (LPVOID)memory_block.get(),
+                                        (DWORD)memory_block_size ,
+                                        nullptr , 0 ) ){
+          DebugOutputStatic( "ImmSetCompositionStringW SCS_SETRECONVERTSTRING failed" );
+          break;
+        }
+        
       }while( false );
       VERIFY( ImmReleaseContext( hWnd, hImc ) );
     }
