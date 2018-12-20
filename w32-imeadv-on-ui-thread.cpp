@@ -1,4 +1,5 @@
-﻿#include <tchar.h>
+﻿/* -*- compile-command: "make DEBUG=1 -j" -*- */
+#include <tchar.h>
 #include <windows.h>
 #include <imm.h>
 #include <commctrl.h>
@@ -21,8 +22,10 @@
 
 #include "w32-imeadv.h"
 
-template<UINT WaitMessage , DWORD dwTimeOutMillSecond = 5000 /* 5 sec timout (for safity) */> static inline BOOL 
-my_wait_message( HWND hWnd , DWORD times = 1u);
+template<UINT WaitMessage ,
+         typename message_transporter_t,
+         DWORD dwTimeOutMillSecond = 1000 /* 1000 msec * 3  timout (for safity) */> static inline BOOL 
+my_wait_message( HWND hWnd , const message_transporter_t& message_transporter);
 
 /* see w32_imm_wm_ime_startcomposition and w32_imm_wm_ime_endcomposition */
 static int ignore_wm_ime_start_composition = 0; // このパラメータ プロパティに書いておく必要がある。
@@ -66,10 +69,10 @@ operator<<( std::basic_ostream<CharT,Traits>& out , const RECONVERTSTRING& recon
   return out;
 }
 
-template<UINT WaitMessage , DWORD dwTimeOutMillSecond> static inline BOOL 
-my_wait_message( HWND hWnd , DWORD times)
+// やっぱりこれバグってる気がするな。
+template<UINT WaitMessage , typename message_transporter_t, DWORD dwTimeOutMillSecond> static inline BOOL 
+my_wait_message( HWND hWnd , const message_transporter_t& message_transporter)
 {
-
   assert( hWnd );
 
   if(! hWnd )
@@ -82,8 +85,19 @@ my_wait_message( HWND hWnd , DWORD times)
   SUBCLASSPROC const subclass_proc
     = [](HWND hWnd, UINT uMsg , WPARAM wParam , LPARAM lParam, UINT_PTR , DWORD_PTR dwRefData) -> LRESULT {
         if( WaitMessage == uMsg ){
-          DWORD *ptr = reinterpret_cast<DWORD*>( dwRefData );
+          int* ptr = reinterpret_cast<int*>( dwRefData );
           --(*ptr);
+#if !defined( NDEBUG )
+          {
+            std::wstringstream out;
+            out << "decrement " << *ptr
+                << DEBUG_STRING("") << std::endl;
+            OutputDebugStringW( out.str().c_str() );
+          }
+          if( *ptr < 0 ){
+            DebugOutputStatic("negative value");
+          }
+#endif /* !defined( NDEBUG ) */
         }
         return ::DefSubclassProc( hWnd, uMsg , wParam , lParam );
       };
@@ -91,17 +105,20 @@ my_wait_message( HWND hWnd , DWORD times)
   UINT_PTR const uIdSubclass = reinterpret_cast<UINT_PTR const >( subclass_proc );
 
   /* not throw std::bad_alloc in this case  */
-  std::unique_ptr< DWORD > waiting_data{(new ( std::nothrow ) DWORD{times})}; 
+  std::unique_ptr< int > waiting_data{(new ( std::nothrow ) int{0})}; 
   if( ! static_cast<bool>( waiting_data ) ){
     return FALSE;
   }
-
-  if( ::SetWindowSubclass( hWnd , subclass_proc , uIdSubclass , reinterpret_cast<DWORD_PTR>(waiting_data.get()) ) ){
+  
+  if(! ::SetWindowSubclass( hWnd , subclass_proc , uIdSubclass , reinterpret_cast<DWORD_PTR>( waiting_data.get()) ) ){
+    DebugOutputStatic( " SetWindowSubclass failed" );
+    return FALSE;
+  }else{
     struct raii{
       HWND const hWnd;
       SUBCLASSPROC const subclass_proc;
       UINT_PTR const uIdSubclass;
-      std::unique_ptr< DWORD >& waiting_data;
+      std::unique_ptr< int >& waiting_data;
       ~raii(){
         if( !::RemoveWindowSubclass( this->hWnd, this->subclass_proc , this->uIdSubclass ) ){
           // 不本意ながら、 waiting_data を detach して、状況の保全を図る
@@ -110,8 +127,17 @@ my_wait_message( HWND hWnd , DWORD times)
         }
       }
     } remove_window_subclass_raii = { hWnd , subclass_proc , uIdSubclass , waiting_data };
+
+    assert( static_cast<bool>( waiting_data ) ); // 上の条件式ではねてる
+
+    // message_transporter の中で SendMessage していると、そのSendMessage の最中にSendMessage が戻ってくる可能性がある。
+    // そうすると、 既に、waiting_data が負数になっている場合がある。
+    *waiting_data += message_transporter(); 
     
-    while( static_cast<bool>( waiting_data ) && *waiting_data ){
+    int wakeup_chance = 3;
+    while( *waiting_data ){
+      if( !wakeup_chance )
+        break;
       /* 
          ここ、なぜMsgWaitForMultipleObjects では無く、MsgWaitForMutipleObjectsEx なのかは
          @See Windows via C/C++ ver4. Chaper 26. Section 4. 
@@ -126,7 +152,7 @@ my_wait_message( HWND hWnd , DWORD times)
         {
           MSG msg = {};
           // Process only messages sent with SendMessage
-          while( PeekMessageW( &msg , NULL , 0 , 0 , PM_REMOVE | PM_QS_SENDMESSAGE ) ){
+          while( PeekMessageW( &msg , hWnd , 0 , 0 , PM_REMOVE | PM_QS_SENDMESSAGE ) ){
             if( WM_QUIT == msg.message ){
               // これは起こらない状態と思うが、今メッセージポンプの内側でWM_QUITメッセージを受け取ったので、
               // 外側のメッセージポンプにWM_QUITを伝播させる。
@@ -142,11 +168,21 @@ my_wait_message( HWND hWnd , DWORD times)
         {
           std::wstringstream out{};
           out << "** WARNNING ** my_wait_message TIME_OUT! "
-              << "(" << *waiting_data << ")" 
+              << "(" << *waiting_data << ")" << "wakup_change = " << wakeup_chance << " " 
               << "WaitMessage=" << WaitMessage << " "
               << __PRETTY_FUNCTION__
               << DEBUG_STRING( " " ) << std::endl;
           OutputDebugStringW( out.str().c_str() );
+          if( wakeup_chance-- ){
+            // バグ #18420 対応させるために、WAIT_TIMEOUT が戻ってきたら、 Lispスレッドに WM_W32_IMEADV_NULL を入れて、
+            // Lisp スレッドを起こしてやる。?  
+            HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
+            if( communication_window_handle ){
+              // wake up lisp thread 
+              SendMessage( communication_window_handle , WM_W32_IMEADV_NULL , 0 , 0 );
+              continue;
+            }
+          }
           return FALSE;
         }
       default:
@@ -161,7 +197,6 @@ my_wait_message( HWND hWnd , DWORD times)
     }
     return TRUE;
   }
-  return FALSE;
 }
 
 
@@ -338,13 +373,16 @@ w32_imeadv_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
       DebugOutputStatic("w32_imeadv_wm_ime_request -> IMR_COMPOSITIONFONT");
       HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
       if( communication_window_handle ){
-        if( SendMessageW( communication_window_handle , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT ,
-                          reinterpret_cast<WPARAM>(hWnd) , 0  ) ){
-          // Wait Conversion Message
-          OutputDebugStringA( "IMR_COMPOSITIONFONT waiting message\n");
-          my_wait_message<WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT>(hWnd);
-          return 0;
-        }
+        my_wait_message<WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT>(hWnd, 
+                                                               ([&]()->int{
+                                                                  // Wait Conversion Message
+                                                                  OutputDebugStringA( "IMR_COMPOSITIONFONT waiting message\n");
+                                                                  if( SendMessageW( communication_window_handle , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT ,
+                                                                                    reinterpret_cast<WPARAM>(hWnd) , 0  ) ){
+                                                                    return 1;
+                                                                  }
+                                                                  return 0;
+                                                                }));
       }
       break;
     }
@@ -391,77 +429,73 @@ w32_imeadv_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
         if( SetWindowSubclass( hWnd, subclass_proc ,
                                reinterpret_cast<UINT_PTR>(subclass_proc) ,
                                reinterpret_cast<DWORD_PTR>( nrs.get()  ) ) ){
-          if( SendMessageW( communication_window_handle , WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING ,
-                            reinterpret_cast<WPARAM>(hWnd) , 0 ) ){
-            // Wait Conversion Message
-            my_wait_message<WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING>( hWnd );
-            if( !::RemoveWindowSubclass( hWnd , subclass_proc , reinterpret_cast<UINT_PTR>( subclass_proc ) ) ){
-              // 不本意ながら、メモリーリークとなるが、サブクラス化の解除が出来ないので、dwRefData をそのまま残しておく 
-              nrs.release();
-              DebugOutputStatic("** WARNING ** RemoveWindowSubclass failed");
+          // Wait Conversion Message
+          my_wait_message<WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING>( hWnd , 
+                                                                     [&]()->int{
+                                                                       if( SendMessageW( communication_window_handle , WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING ,
+                                                                                         reinterpret_cast<WPARAM>(hWnd) , 0 ) ){
+                                                                         return 1;
+                                                                       }else{
+                                                                         return 0;
+                                                                       }
+                                                                     } );
+          
+          if( !::RemoveWindowSubclass( hWnd , subclass_proc , reinterpret_cast<UINT_PTR>( subclass_proc ) ) ){
+            // 不本意ながら、メモリーリークとなるが、サブクラス化の解除が出来ないので、dwRefData をそのまま残しておく 
+            nrs.release();
+            DebugOutputStatic("** WARNING ** RemoveWindowSubclass failed");
+            return 0;
+          }
+          if( lParam ){
+            BYTE * const ptr(reinterpret_cast<BYTE*>( lParam ));
+            RECONVERTSTRING * const reconv( reinterpret_cast<RECONVERTSTRING*>( lParam ) );
+            if( reconv->dwSize < sizeof( RECONVERTSTRING ) ){
+              DebugOutputStatic( "reconv->dwSize < sizeof( RECONVERTSTRING )" );
               return 0;
             }
-            if( lParam ){
-              BYTE * const ptr(reinterpret_cast<BYTE*>( lParam ));
-              RECONVERTSTRING * const reconv( reinterpret_cast<RECONVERTSTRING*>( lParam ) );
-              if( reconv->dwSize < sizeof( RECONVERTSTRING ) ){
-                DebugOutputStatic( "reconv->dwSize < sizeof( RECONVERTSTRING )" );
-                return 0;
-              }
-              if( reconv->dwStrOffset < sizeof( RECONVERTSTRING ) ){
-                reconv->dwStrOffset = sizeof( RECONVERTSTRING );
-              }
-              if( reconv->dwSize < reconv->dwStrOffset ){
-                DebugOutputStatic( "reconv->dwSize < reconv->dwStrOffset" );
-                return 0;
-              }
-              reconv->dwVersion = 0;
-              reconv->dwStrLen = (std::min)((( reconv->dwSize - reconv->dwStrOffset ) / sizeof( wchar_t )) ,
-                                            nrs->first_half.size() + nrs->later_half.size() );
-              // reconv->dwStrOffset ; set up above.
-              reconv->dwCompStrLen = 0;
-              reconv->dwCompStrOffset = sizeof( wchar_t ) * nrs->first_half.size() ;
-              reconv->dwTargetStrLen = 0;
-              reconv->dwTargetStrOffset = sizeof( wchar_t ) * nrs->first_half.size() ;
-              
-              wchar_t* const text = reinterpret_cast<wchar_t*>(ptr + reconv->dwStrOffset);
-              wchar_t* p = text;
-              if(nrs->first_half.size() <= reconv->dwStrLen){
-                for( auto&& v : nrs->first_half ){
-                  if( p - text < reconv->dwStrLen){
-                    *(p++) = v;
-                  }else{
-                    break;
-                  }
-                }
-                for( auto&& v : nrs->later_half ){
-                  if( p - text < reconv->dwStrLen ){
-                    *(p++) = v;
-                  }else{
-                    break;
-                  }
-                }
-                if( p < text + reconv->dwStrLen ){
-                  std::fill( p , text + reconv->dwStrLen , L'\0' );
-                }
-              }
-#if 0
-              {
-                std::wstringstream out{};
-                out << *reconv << " \"";
-                std::for_each( text , text + reconv->dwStrLen ,
-                               [&out]( const wchar_t &v ){
-                                 out << v;
-                               });
-                out << DEBUG_STRING( "\" return DOCUMENT_FEEED" );
-                OutputDebugStringW( out.str().c_str() );
-              }
-#endif 
-              return reconv->dwStrLen;
-            }else{
-              return sizeof( RECONVERTSTRING ) +
-                (sizeof( wchar_t ) * ( nrs->first_half.size() + nrs->later_half.size() + 1 ));
+            if( reconv->dwStrOffset < sizeof( RECONVERTSTRING ) ){
+              reconv->dwStrOffset = sizeof( RECONVERTSTRING );
             }
+            if( reconv->dwSize < reconv->dwStrOffset ){
+              DebugOutputStatic( "reconv->dwSize < reconv->dwStrOffset" );
+              return 0;
+            }
+            reconv->dwVersion = 0;
+            reconv->dwStrLen = (std::min)((( reconv->dwSize - reconv->dwStrOffset ) / sizeof( wchar_t )) ,
+                                          nrs->first_half.size() + nrs->later_half.size() );
+            // reconv->dwStrOffset ; set up above.
+            reconv->dwCompStrLen = 0;
+            reconv->dwCompStrOffset = sizeof( wchar_t ) * nrs->first_half.size() ;
+            reconv->dwTargetStrLen = 0;
+            reconv->dwTargetStrOffset = sizeof( wchar_t ) * nrs->first_half.size() ;
+            
+            wchar_t* const text = reinterpret_cast<wchar_t*>(ptr + reconv->dwStrOffset);
+            wchar_t* p = text;
+
+            if(nrs->first_half.size() <= reconv->dwStrLen){
+              for( auto&& v : nrs->first_half ){
+                if( p - text < reconv->dwStrLen){
+                  *(p++) = v;
+                }else{
+                  break;
+                }
+              }
+              for( auto&& v : nrs->later_half ){
+                if( p - text < reconv->dwStrLen ){
+                  *(p++) = v;
+                }else{
+                  break;
+                }
+              }
+              if( p < text + reconv->dwStrLen ){
+                std::fill( p , text + reconv->dwStrLen , L'\0' );
+              }
+            }
+
+            return reconv->dwStrLen;
+          }else{
+            return sizeof( RECONVERTSTRING ) +
+              (sizeof( wchar_t ) * ( nrs->first_half.size() + nrs->later_half.size() + 1 ));
           }
         }
       }
@@ -628,7 +662,7 @@ w32_imeadv_ui_perform_reconversion( HWND hWnd, WPARAM wParam , LPARAM lParam )
           DebugOutputStatic( "ImmSetCompositionStringW SCS_QUERYRECONVERTSTRING failed" );
           break;
         }
-        // カーソル位置の調整を行う必要があるが、後回し。
+        // カーソル位置の調整を行う
         if( 0 < cursor_position - reconv->dwCompStrOffset ){
           /* cursor_position から reconv->dwComStrOffset にカーソルが左にずれたので、
              これをバイト単位から wchar_t 単位にして、サロゲートペアを考慮して文字数単位に変換する */
@@ -643,12 +677,24 @@ w32_imeadv_ui_perform_reconversion( HWND hWnd, WPARAM wParam , LPARAM lParam )
           if( 0 < nCharacter ){
             if( communication_window_handle ){
               w32_imeadv_request_backward_char_lparam backward_char = { hWnd, nCharacter };
-              auto times = SendMessage( communication_window_handle , WM_W32_IMEADV_REQUEST_BACKWARD_CHAR ,
-                                        reinterpret_cast<WPARAM>(hWnd),
-                                        reinterpret_cast<LPARAM>(&backward_char ));
-              if( times ){
-                my_wait_message<WM_W32_IMEADV_NOTIFY_BACKWARD_CHAR>( hWnd,  times );
-              }
+              my_wait_message<WM_W32_IMEADV_NOTIFY_BACKWARD_CHAR>( hWnd ,
+                                                                   [&]()->DWORD{
+#if 1 /* これはPostMessage でも大丈夫な作り担っている backward_char が破棄されるのは、 my_wait_message から戻ってきてからだから */
+                                                                     return static_cast<int>(SendMessage( communication_window_handle ,
+                                                                                                          WM_W32_IMEADV_REQUEST_BACKWARD_CHAR ,
+                                                                                                          reinterpret_cast<WPARAM>(hWnd),
+                                                                                                          reinterpret_cast<LPARAM>(&backward_char) ) );
+#else
+                                                                     if( PostMessage ( communication_window_handle ,
+                                                                                       WM_W32_IMEADV_REQUEST_BACKWARD_CHAR ,
+                                                                                       reinterpret_cast<WPARAM>(hWnd),
+                                                                                       reinterpret_cast<LPARAM>(&backward_char) )){
+                                                                       return nCharacter;
+                                                                     }else{
+                                                                       return 0;
+                                                                     }
+#endif
+                                                                   });
             }
           }
         }
@@ -657,10 +703,10 @@ w32_imeadv_ui_perform_reconversion( HWND hWnd, WPARAM wParam , LPARAM lParam )
                                         (LPVOID)memory_block.get(),
                                         (DWORD)memory_block_size ,
                                         nullptr , 0 ) ){
-          
           DebugOutputStatic( "ImmSetCompositionStringW SCS_SETRECONVERTSTRING failed" );
           break;
         }
+        
         {
           // 再変換文字は、後でIMEが投入してくるので、ここで消す
           wchar_t * const lft =
@@ -672,14 +718,15 @@ w32_imeadv_ui_perform_reconversion( HWND hWnd, WPARAM wParam , LPARAM lParam )
               ++p; // UTF-16 surroage pair;
             }
           }
-          if( 0< nCharacter ){
-            w32_imeadv_request_delete_char_lparam delete_char = { hWnd , nCharacter };
-            auto times = SendMessage( communication_window_handle ,
-                                      WM_W32_IMEADV_REQUEST_DELETE_CHAR ,
-                                      reinterpret_cast<WPARAM>( hWnd ),
-                                      reinterpret_cast<LPARAM>( &delete_char ) );
-            if( times ){
-              my_wait_message<WM_W32_IMEADV_NOTIFY_DELETE_CHAR>( hWnd, times );
+          if( 0 < nCharacter ){
+            if( communication_window_handle ){
+              w32_imeadv_request_delete_char_lparam delete_char = { hWnd , nCharacter };
+              my_wait_message<WM_W32_IMEADV_NOTIFY_DELETE_CHAR>( hWnd , [&]()->int{
+                                                                          return static_cast<int>(SendMessage( communication_window_handle ,
+                                                                                                               WM_W32_IMEADV_REQUEST_DELETE_CHAR ,
+                                                                                                               reinterpret_cast<WPARAM>( hWnd ),
+                                                                                                               reinterpret_cast<LPARAM>( &delete_char ) ));
+                                                                        });
             }
           }
         }

@@ -288,7 +288,7 @@ Fw32_imeadv__default_message_input_handler ( emacs_env* env ,
         switch( buffer[i] ){
         case '\0':
           goto end_of_loop;
-        case '*': 
+        case '*':
           break;
         case '0':
           my_funcall( env , u8"w32-imeadv--notify-openstatus-close" );
@@ -325,7 +325,6 @@ Fw32_imeadv__default_message_input_handler ( emacs_env* env ,
           if( !env->is_not_nil( env , my_funcall( env , u8"w32-imeadv--notify-documentfeed-string") )){
             const HWND hWnd = w32_imeadv::get_communication_HWND() ;
             if( hWnd && IsWindow( hWnd ) ){
-              DebugOutputStatic( "faillback WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING" );
               SendMessage( hWnd , WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING , 0, 0 );
             }else{
               message_utf8( env,
@@ -336,10 +335,14 @@ Fw32_imeadv__default_message_input_handler ( emacs_env* env ,
           break;
         case 'b':
           {
-            my_funcall( env, u8"backward-char" );
+            my_funcall( env, u8"backward-char" , env->make_integer( env, 1 ) );
             const HWND hWnd = w32_imeadv::get_communication_HWND();
             if( hWnd && IsWindow( hWnd ) ){
               SendMessage( hWnd, WM_W32_IMEADV_NOTIFY_BACKWARD_CHAR , 0 , 0 );
+            }else{
+              message_utf8( env,
+                            std::string{u8"w32_imeadv::get_communication_HWND() return NULL. "
+                                "You should wait 5 sec. (WM_W32_IMEADV_NOTIFY_BACKWARD_CHAR)" });
             }
           }
           break;
@@ -349,6 +352,10 @@ Fw32_imeadv__default_message_input_handler ( emacs_env* env ,
             const HWND hWnd = w32_imeadv::get_communication_HWND();
             if( hWnd && IsWindow( hWnd )){
               SendMessage( hWnd, WM_W32_IMEADV_NOTIFY_DELETE_CHAR , 0 , 0 );
+            }else{
+              message_utf8( env,
+                            std::string{u8"w32_imeadv::get_communication_HWND() return NULL. "
+                                "You should wait 5 sec. (WM_W32_IMEADV_NOTIFY_DELETE_CHAR)" });
             }
           }
           break;

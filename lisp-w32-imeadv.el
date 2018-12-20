@@ -8,6 +8,7 @@
   (when (w32-imeadv-initialize) ; w32-imeadv-initialize は失敗することがあります。
     ; 通知用のサブプロセス( UIスレッドのイベントを、self-pipe-trick で、入力へ変換する ) の起動
     (let ((process-connection-type nil )
+          (process-adaptive-read-buffering nil)
           (process-name "emacs-imm32-input-proxy"))
 	  (start-process process-name nil
                      "rundll32.exe" 

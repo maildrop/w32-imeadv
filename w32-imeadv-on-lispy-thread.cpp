@@ -55,7 +55,7 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
   switch( uMsg ){
   case WM_W32_IMEADV_NULL :
     {
-      DebugOutputStatic( "w32_imeadv_lispy_communication_wnd_proc_impl WM_W32_IMEADV_NULL message" );
+      //DebugOutputStatic( "w32_imeadv_lispy_communication_wnd_proc_impl WM_W32_IMEADV_NULL message" );
       if( user_data_ptr ){
         std::unique_lock<decltype(user_data_ptr->mutex)> lock{ user_data_ptr->mutex };
         if( user_data_ptr->signal_window ){
@@ -218,7 +218,6 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
           assert( NULL != response_wnd ); // この assert は絶対に引っかからない なぜならば wParam が NULL ではないから
           return SendMessageW( response_wnd , WM_W32_IMEADV_NOTIFY_BACKWARD_CHAR , wParam , lParam );
         }else{
-
           if( !user_data_ptr->request_queue.empty() ){
             HWND response_wnd = user_data_ptr->request_queue.front();
             user_data_ptr->request_queue.pop();
@@ -268,8 +267,8 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
                 SendMessage( user_data_ptr->signal_window ,
                              WM_W32_IMEADV_REQUEST_BACKWARD_CHAR ,
                              wParam, lParam );
-              j += !!(send_message_result);
               if( send_message_result ){
+                ++j;
                 user_data_ptr->request_queue.push( w32_imeadv_request_backward_char->hWnd );
               }
             }
@@ -295,8 +294,8 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
                 SendMessage( user_data_ptr->signal_window ,
                              WM_W32_IMEADV_REQUEST_DELETE_CHAR ,
                              0, 0 );
-              j+= !!(send_message_result);
               if( send_message_result ){
+                ++j;
                 user_data_ptr->request_queue.push( w32_imeadv_request_delete_char->hWnd );
               }
             }
