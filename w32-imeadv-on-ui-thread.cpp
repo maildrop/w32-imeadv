@@ -400,27 +400,36 @@ w32_imeadv_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
         if( ! static_cast<bool>( nrs ) ){
           return 0;
         }
+        
+        /*  WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING を処理する */
         SUBCLASSPROC const subclass_proc = 
           []( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM lParam ,
               UINT_PTR uIdSubclass , DWORD_PTR dwRefData )->LRESULT {
-            NotifyReconversionString* dst( reinterpret_cast<NotifyReconversionString*>( dwRefData ));
-            NotifyReconversionString* src(reinterpret_cast<NotifyReconversionString*>( lParam ));
-            if( dst && src ){
-              dst->pos = src->pos;
-              dst->begin = src->begin;
-              dst->end = src->end;
-              dst->first_half_num = src->first_half_num;
-              dst->later_half_num = src->later_half_num;
-              dst->first_half = src->first_half;
-              dst->later_half = src->later_half;
+            switch( uMsg ){
+            case WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING:
+              {
+                NotifyReconversionString* dst( reinterpret_cast<NotifyReconversionString*>( dwRefData ));
+                NotifyReconversionString* src( reinterpret_cast<NotifyReconversionString*>( lParam ));
+                if( dst && src ){
+                  dst->pos = src->pos;
+                  dst->begin = src->begin;
+                  dst->end = src->end;
+                  dst->first_half_num = src->first_half_num;
+                  dst->later_half_num = src->later_half_num;
+                  dst->first_half = src->first_half;
+                  dst->later_half = src->later_half;
+                }
+                break;
+              }
+            default:
+              break;
             }
             return ::DefSubclassProc( hWnd, uMsg ,wParam , lParam );
           };
         
         if( SetWindowSubclass( hWnd, subclass_proc ,
-                               reinterpret_cast<UINT_PTR>(subclass_proc) ,
+                               reinterpret_cast<UINT_PTR>( subclass_proc ) ,
                                reinterpret_cast<DWORD_PTR>( nrs.get()  ) ) ){
-          // Wait Conversion Message
           my_wait_message<WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING>( hWnd , 
                                                                      [&]()->int{
                                                                        if( SendMessageW( communication_window_handle , WM_W32_IMEADV_REQUEST_DOCUMENTFEED_STRING ,
