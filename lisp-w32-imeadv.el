@@ -10,10 +10,8 @@
   
   (when (w32-imeadv-initialize) ; w32-imeadv-initialize は失敗することがあります。
     ;; 通知用のサブプロセス( UIスレッドのイベントを、self-pipe-trick で、入力へ変換する ) の起動
-    ;; このサブプロセスは、Dynamic module の Lisp メソッドを呼び出すのが目的なので
-    ;; adaptive で遅延をする必要は無いです。（むしろレスポンスが悪くなるので最優先で最小粒度で読み出すことが求められます）
     (let ( (process-connection-type nil )        ; pipe を使います
-           (process-adaptive-read-buffering nil) ; adaptive である必要はありません
+           ;(process-adaptive-read-buffering nil) ; adaptive にしておかないとすごく遅い
            (process-name "emacs-imm32-input-proxy") )
       (start-process process-name nil
                      "rundll32.exe"
