@@ -9,9 +9,11 @@
   (load "w32-imeadv") ; w32-imeadv をロードする。
   
   (when (w32-imeadv-initialize) ; w32-imeadv-initialize は失敗することがあります。
-    ; 通知用のサブプロセス( UIスレッドのイベントを、self-pipe-trick で、入力へ変換する ) の起動
+    ;; 通知用のサブプロセス( UIスレッドのイベントを、self-pipe-trick で、入力へ変換する ) の起動
+    ;; このサブプロセスは、Dynamic module の Lisp メソッドを呼び出すのが目的なので
+    ;; adaptive で遅延をする必要は無いです。（むしろレスポンスが悪くなるので最優先で最小粒度で読み出すことが求められます）
     (let ( (process-connection-type nil )        ; pipe を使います
-           (process-adaptive-read-buffering nil) ; adaprive である必要はありません
+           (process-adaptive-read-buffering nil) ; adaptive である必要はありません
            (process-name "emacs-imm32-input-proxy") )
       (start-process process-name nil
                      "rundll32.exe"
@@ -26,6 +28,7 @@
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;; IME Composition フォントの設定
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    (defvar w32-imeadv-composition-font-hook nil)
     
     ;; w32-imeadv.dll から呼び出される Lisp の関数
     (defun w32-imeadv--notify-composition-font()
@@ -36,7 +39,8 @@
                         (not (null w32-imeadv-ime-composition-font-attributes )))
                    w32-imeadv-ime-composition-font-attributes
                  (font-face-attributes (face-font 'default nil ?あ )))) ) ; ?あ or (char-before)
-        ;; TODO 本来はここで run-hook して、フォントの調整をする機会をユーザーに与えるべきである。
+        ;; フォントの調整をする機会をユーザーに与える
+        (run-hooks 'w32-imeadv-composition-font-hook)
         (w32-imeadv-advertise-ime-composition-font-internal w32-imeadv-ime-composition-font-attributes )
         ))
 
@@ -93,7 +97,10 @@
 
 ;;;;;;;;;;;;;;;;; w32-imeadv の初期化ここまで ;;;;;;;;;;;;;;;;;;;
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; 追加の設定
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (when (and (eq system-type 'windows-nt)   ; Windows NT 上で
            window-system                  ; Window システムがあって
            (locate-library "w32-imeadv")) ; w32-imeadvが存在していれば、
