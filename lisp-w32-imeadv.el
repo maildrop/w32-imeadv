@@ -73,3 +73,26 @@
     )) ;; end of initialize w32-imeadv
 
 ;;;;;;;;;;;;;;;;; w32-imeadv の初期化ここまで ;;;;;;;;;;;;;;;;;;;
+
+;; 追加の設定
+(when (and (eq system-type 'windows-nt)   ; Windows NT 上で
+           window-system                  ; Window システムがあって
+           (locate-library "w32-imeadv")) ; w32-imeadvが存在していれば、
+  
+  ;; 日本語入力時にカーソルの色を変える設定
+  (defvar w32-imeadv-ime-openstatus-indicate-cursor-color-enable nil)
+  (when w32-imeadv-ime-openstatus-indicate-cursor-color-enable
+    (defvar w32-imeadv-ime-openstatus-indicate-cursor-color "coral4")
+    (setq w32-imeadv-ime-on-hook-color-stack nil) ; カーソルの色を保持するスタック
+    (add-hook 'w32-imeadv-ime-on-hook
+              (lambda ()
+                ; フレームのパラメータから、cursor-color を取得して スタックにプッシュ
+                (push (frame-parameter (selected-frame) 'cursor-color) w32-imeadv-ime-on-hook-color-stack)
+                ; 色を変える
+                (set-cursor-color w32-imeadv-ime-openstatus-indicate-cursor-color)))
+    (add-hook 'w32-imeadv-ime-off-hook
+              (lambda ()
+                ; スタックから元のカーソル色を取得して、カーソルの色を変更
+                (let ( (cursol-corlor (pop w32-imeadv-ime-on-hook-color-stack)) )
+                  (when cursol-corlor
+                    (set-cursor-color cursol-corlor ))) ))) )
