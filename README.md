@@ -1,15 +1,18 @@
 # w32-imeadv (experimental implementation : 実験的実装)
 
 IMM32 dynamic module for Emacs on Windows
-これまで、EmacsでIME実用的に使用するためには複雑なパッチを当てる必要があったが、
+これまで、EmacsでIMEを実用的に使用するためには複雑なパッチを当てる必要があったが、
 この作業は煩雑で注意が必要な作業であった。
 
 このパッチ当ての作業を簡素化するために、Dynamic Module を利用したコードを書き下ろすことにした。
 
+このダイナミックモジュールは、26.1 で作られ 現在 27.0.50(開発版、素の GNU Emacs 版パッチ無し）でテストしている最中である。
+特にダイナミックモジュール導入後の25系は、emacs-module.h を入れ替えればよいのであるが、していない。
+そちらは既にIMEパッチの当たったNTEmacs64等があるので、検討を願いたい。
+
 # 目標
 
 「できるだけ」GNU 配布のソースを --with-modules でコンパイルしただけで使えるようにすること。
-既存の w32-ime.el の機能を満たすこと。互換層を作ること。
 
 - ほとんどのWM_IME_ 周りのコードを、WindowsXP 以降で利用可能になった SetWindowSubclass でサブクラス化することにより行う。
 - GNUのコードをできるだけそのままにする。
@@ -30,11 +33,13 @@ IMM32 dynamic module for Emacs on Windows
 
  本モジュールをビルドして作ったファイル 
 - w32-adv.dll
--- これは $(PREFIX)/share/emacs/26.1/site-lisp に配置 これが dynamic module 本体になります
+
+ これは $(PREFIX)/share/emacs/26.1/site-lisp に配置 これが dynamic module 本体になります
 
  あとは、追加のサンプルに、lisp-w32-imeadv.el がありますので、どうにかする。
 
 ## TODO
+- 雑多なLispコードを site-lisp の下へ入れられるようにする。.dll と組にして使うときはどうするのよという疑問
 - インクリメンタルサーチ時に、minibuffer 上で変換するようにする。
 - 再変換時にリージョン選択されている時は、そのリージョンを再変換に選ぶようにする。
 - 以下優先度低め
@@ -44,7 +49,7 @@ IMM32 dynamic module for Emacs on Windows
 
 ## BUG
 - そもそも、まだ「動いた」のレベルである。
-
+- 現在 27.0.50 で、2018-12-22 からドッグフード化させている最中 
 
 ## できたこと
 - WM_IME_ 及びその他のウィンドウメッセージを収奪
