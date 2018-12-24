@@ -36,7 +36,6 @@ IMM32 dynamic module for Emacs on Windows
 
 ## TODO
 - インクリメンタルサーチ時に、minibuffer 上で変換するようにする。
-- IMMがオープン中にカーソルの色を変える機能を追加する (多分 Lisp だけでいけるはず・・？)
 - 再変換時にリージョン選択されている時は、そのリージョンを再変換に選ぶようにする。
 - 以下優先度低め
  - 異字体セレクタを考慮すること
@@ -60,7 +59,8 @@ IMM32 dynamic module for Emacs on Windows
 - 本体のemacs.exe が異常終了したときに、emacs-imm32-input-proxy.exe が残ってしまうので、emacs.exe のプロセスハンドルを開いてMsgWaitForMultipleObjectsで待つように変更すること。
 - emacs-imm32-input-proxy.exe を rundll32.exe を使って、dll として導入を図ること。
 （そうすれば普通に単一のdllファイルで、w32-imeadv.dll だけで処理できるようになる）
-
+- IMMがオープン中にカーソルの色を変える機能を追加する (多分 Lisp だけでいけるはず・・？)
+- register-input-method で W32-IMEADV が登録されるようになりました。 Ctrl-\ でIMEのon-off ができます
 - デバッグログは、マクロNDEBUG が定義されているときは出力されないように変更されました。そして、デフォルトの指示はNDEBUG にする
 - UIからデフォルトフォントを変更した後、最初の変換ではフォントの指定が上手くいっていなかった問題に対処した
   この問題は、IMEを開いた状態でデフォルトフォントを変更すると、WM_IME_STARTCOMPOSITIONが送られないのでIMEのフォントを変更するようになっていない問題があった。このために、WM_IME_COMPOSITIONでフォントの指定を指示するようにすると共に、フォントの指定そのものは同期メソッドである必要が無いのでLispスレッドへはPostMessageでメッセージを投げるようにして対応してみた。
