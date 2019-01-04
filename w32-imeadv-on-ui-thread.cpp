@@ -776,6 +776,21 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
           return ::DefWindowProc( hWnd, uMsg , wParam , lParam );
         }
         break;
+      case 0x58: // X Key 
+        { /* Ctrl-X が来たときに IME を無効にする本当はLispスレッドでやるべき仕事 experimental */
+#if 1 
+          if( GetAsyncKeyState( VK_CONTROL ) ){ 
+            HIMC hImc = ImmGetContext( hWnd );
+            if( hImc ){
+              if( ImmGetOpenStatus( hImc ) ){
+                ImmSetOpenStatus( hImc , FALSE );
+              }
+              ImmReleaseContext( hWnd , hImc );
+            }
+          }
+#endif
+        }
+        break;
       default:
         break;
       }
