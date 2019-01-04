@@ -28,6 +28,12 @@ IMM32 dynamic module for Emacs on Windows
 
 異字体セレクタがまだ実装できていません。
 
+- 現在 ad-hoc な方法で Ctrl-x 押下時に、IME を offにしています。「正しい方法」を知りたい
+ 現在ウィンドウプロシージャ側で、 Ctrl-x 押下時に、IME を offにするコードが入っています。
+ 本来は、input-sequence が入力途中の状態の時（ミニバッファに C-x とか表示されている時）から、pre-command-hook が実行される時まで
+IME を一時的に off にするというのが正しい挙動になると思います。 このinput-sequence が入力途中 というのを Lisp コードから判定するフックを求めています。
+ この機能は現在切ることができません。
+
 # 使い方
  Dynamic moduleを使っているので、  --with-modules をつけてコンパイルした Emacs が必要になります。
 
