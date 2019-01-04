@@ -48,3 +48,8 @@ MsgWaitForMultipleObjectsEx で、MWMO_INPUTAVAILABLE フラグを使う方法
 
 
 再変換の時にリージョンの選択があるときにそれを使うようにしたい
+
+;; defvar は スペシャルフォームなので、funcall で呼べない。
+;; この問題を解決するために、一旦 read-from-string , car を使ってから、eval で評価する。
+
+(eval (car (read-from-string (format "(defvar %s %S %S )" "my-symbol" t "description"))))
