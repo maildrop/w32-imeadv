@@ -124,6 +124,13 @@
   ;; isearch modeに入る時に IME をオフにする
   (add-hook 'isearch-mode-hook 'deactivate-input-method )
 
+  ;; ミニバッファ setup hook で、IME をオフにする
+  (add-hook 'minibuffer-setup-hook (lambda ()
+				                     (if (minibufferp)
+				                         (with-selected-window (minibuffer-selected-window)
+					                       (deactivate-input-method) )
+				                       (deactivate-input-method))))
+
   ;; 日本語入力時にカーソルの色を変える設定
   (defvar w32-imeadv-ime-openstatus-indicate-cursor-color-enable nil)
   (when w32-imeadv-ime-openstatus-indicate-cursor-color-enable
