@@ -1,6 +1,9 @@
-
 **/*.exe
 **/*.dll
 **/*.o
 **/*.map
 **/*~
+
+GPATH
+GTAGS
+GRTAGS
