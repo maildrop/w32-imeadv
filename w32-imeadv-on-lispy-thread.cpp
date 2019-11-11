@@ -118,6 +118,7 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
     
   case WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING:
     {
+      //DebugOutputStatic( "WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING" );
       if( user_data_ptr ){
         if( wParam ){
           HWND const response_wnd = reinterpret_cast<HWND>( wParam );
