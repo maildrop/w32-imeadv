@@ -702,7 +702,7 @@ w32_imeadv_ui_perform_reconversion( HWND hWnd, WPARAM wParam , LPARAM lParam )
               w32_imeadv_request_backward_char_lparam backward_char = { hWnd, nCharacter };
               my_wait_message<WM_W32_IMEADV_NOTIFY_BACKWARD_CHAR>( hWnd ,
                                                                    [&]()->DWORD{
-#if 1 /* これはPostMessage でも大丈夫な作り担っている backward_char が破棄されるのは、 my_wait_message から戻ってきてからだから */
+#if 1 /* これはPostMessage でも大丈夫な作りになっている backward_char が破棄されるのは、 my_wait_message から戻ってきてからだから */
                                                                      return static_cast<int>(SendMessage( communication_window_handle ,
                                                                                                           WM_W32_IMEADV_REQUEST_BACKWARD_CHAR ,
                                                                                                           reinterpret_cast<WPARAM>(hWnd),
@@ -769,13 +769,55 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
   case WM_KEYDOWN:
     {
       switch( wParam ){
-      case VK_PROCESSKEY:
+      case VK_PROCESSKEY: // VK_PROCESSKEY は Ctrlキーを押しているときがあるので、Emacs本体には触らせない。
         { 
           const MSG msg = { hWnd , uMsg , wParam , lParam , 0 , {0} };
           TranslateMessage(&msg);
           return ::DefWindowProc( hWnd, uMsg , wParam , lParam );
         }
         break;
+
+#if 1
+      case VK_BACK: 
+        {
+          // IME 確定アンドゥ (Ctrl-Backspace) の動作は、Ctrl キーを押しっぱなしなので、Emacsの動作と競合する
+          // 主に、 Google IME のため 
+          if( GetAsyncKeyState( VK_CONTROL ) ){ 
+            if([](HWND hWnd){
+              bool result = false;
+              HIMC hImc = ImmGetContext( hWnd );
+              if( hImc ){
+                if( ImmGetOpenStatus( hImc ) ){
+                  result = true;
+                }
+              }
+              ImmReleaseContext( hWnd , hImc );
+              return result;
+            }(hWnd)){
+              HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
+              if( communication_window_handle ){
+                w32_imeadv_request_backward_char_lparam backward_char = { hWnd, 1 };
+                my_wait_message<WM_W32_IMEADV_NOTIFY_BACKWARD_CHAR>( hWnd , [&]()->DWORD{
+                  return static_cast<int>(SendMessage( communication_window_handle ,
+                                                       WM_W32_IMEADV_REQUEST_BACKWARD_CHAR ,
+                                                       reinterpret_cast<WPARAM>(hWnd),
+                                                       reinterpret_cast<LPARAM>(&backward_char) ) );
+                } );
+                w32_imeadv_request_delete_char_lparam delete_char = { hWnd , 1 };
+                my_wait_message<WM_W32_IMEADV_NOTIFY_DELETE_CHAR>( hWnd , [&]()->int{
+                  return static_cast<int>(SendMessage( communication_window_handle ,
+                                                       WM_W32_IMEADV_REQUEST_DELETE_CHAR ,
+                                                       reinterpret_cast<WPARAM>( hWnd ),
+                                                       reinterpret_cast<LPARAM>( &delete_char ) ));
+                });
+              }
+              return 0;
+            }
+          }
+        }
+        break;
+#endif
+        
 #if 1
       case 0x58: // X Key 
         { /* Ctrl-X が来たときに IME を無効にする本当はLispスレッドでやるべき仕事 experimental */
