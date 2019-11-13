@@ -556,7 +556,7 @@ w32_imeadv_null( HWND hWnd , WPARAM wParam , LPARAM lParam )
 static LRESULT
 w32_imeadv_openstatus_open( HWND hWnd , WPARAM wParam , LPARAM lParam )
 {
-  OutputDebugStringA("w32_imeadv_openstatus_open\n");
+  DebugOutputStatic("w32_imeadv_openstatus_open");
   HIMC hImc = ImmGetContext( hWnd );
   if( hImc ){
     VERIFY(ImmSetOpenStatus( hImc , TRUE ));
@@ -569,7 +569,7 @@ w32_imeadv_openstatus_open( HWND hWnd , WPARAM wParam , LPARAM lParam )
 static LRESULT
 w32_imeadv_openstatus_close( HWND hWnd , WPARAM wParam , LPARAM lParam )
 {
-  OutputDebugStringA("w32_imeadv_openstatus_close\n");
+  DebugOutputStatic("w32_imeadv_openstatus_close");
   HIMC hImc = ImmGetContext( hWnd );
   if( hImc ){
     VERIFY(ImmSetOpenStatus( hImc, FALSE ));
@@ -765,58 +765,69 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
   if( WM_DESTROY == uMsg )
     SendMessageW( hWnd, WM_W32_IMEADV_UNSUBCLASSIFY , 0 , 0 ); // 自分自身に送る
 
+#if 1
+  /* 
+     確定undo の動作を修正する。
+     ATOK で Ctrl+Backspace を押したときに 素早く Ctrl キーを離すと、素直な動作( MS-IME と同じ ）
+     Ctrl キーを離さないと Google 日本語入力と同じ動作をする
+   */
+  if( WM_KEYDOWN == uMsg || WM_KEYUP == uMsg ){
+    if( VK_BACK == wParam ){
+      /*
+      if( uMsg == WM_KEYDOWN ){
+        OutputDebugStringA("WM_KEYDOWN : VK_BACK + VK_CONTROL\n");
+      }else if( uMsg == WM_KEYUP ){
+        OutputDebugStringA("WM_KEYUP   : VK_BACK + VK_CONTROL\n");
+      }
+      */
+      if( GetAsyncKeyState( VK_CONTROL ) ){
+        bool isOpenImm = false;
+        {
+          HIMC hImc = ImmGetContext( hWnd );
+          if( hImc ){
+            isOpenImm = ImmGetOpenStatus( hImc ) ? true : false ;
+            VERIFY( ImmReleaseContext( hWnd,hImc ) );
+          }
+        }
+        if( isOpenImm ){
+          if( WM_KEYDOWN == uMsg ){
+            HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
+            if( communication_window_handle ){
+              
+              w32_imeadv_request_backward_char_lparam backward_char = { hWnd, 1 };
+              my_wait_message<WM_W32_IMEADV_NOTIFY_BACKWARD_CHAR>( hWnd , [&]()->DWORD{
+                return static_cast<int>(SendMessage( communication_window_handle ,
+                                                     WM_W32_IMEADV_REQUEST_BACKWARD_CHAR ,
+                                                     reinterpret_cast<WPARAM>( hWnd ),
+                                                     reinterpret_cast<LPARAM>( &backward_char )));
+              } );
+              w32_imeadv_request_delete_char_lparam delete_char = { hWnd , 1 };
+              my_wait_message<WM_W32_IMEADV_NOTIFY_DELETE_CHAR>( hWnd , [&]()->int{
+                return static_cast<int>(SendMessage( communication_window_handle ,
+                                                     WM_W32_IMEADV_REQUEST_DELETE_CHAR ,
+                                                     reinterpret_cast<WPARAM>( hWnd ),
+                                                     reinterpret_cast<LPARAM>( &delete_char )));
+              });
+              return 0;
+            }
+          }
+        }
+      }
+    }
+  }
+#endif
+  
   switch( uMsg ){
   case WM_KEYDOWN:
     {
       switch( wParam ){
       case VK_PROCESSKEY: // VK_PROCESSKEY は Ctrlキーを押しているときがあるので、Emacs本体には触らせない。
         { 
-          const MSG msg = { hWnd , uMsg , wParam , lParam , 0 , {0} };
-          TranslateMessage(&msg);
+          const MSG msg = { hWnd , uMsg , wParam , lParam , (DWORD)GetMessageTime() , {0} };
+          (void)TranslateMessage(&msg);
           return ::DefWindowProc( hWnd, uMsg , wParam , lParam );
         }
         break;
-
-#if 1
-      case VK_BACK: 
-        {
-          // IME 確定アンドゥ (Ctrl-Backspace) の動作は、Ctrl キーを押しっぱなしなので、Emacsの動作と競合する
-          // 主に、 Google IME のため 
-          if( GetAsyncKeyState( VK_CONTROL ) ){ 
-            if([](HWND hWnd){
-              bool result = false;
-              HIMC hImc = ImmGetContext( hWnd );
-              if( hImc ){
-                if( ImmGetOpenStatus( hImc ) ){
-                  result = true;
-                }
-              }
-              ImmReleaseContext( hWnd , hImc );
-              return result;
-            }(hWnd)){
-              HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
-              if( communication_window_handle ){
-                w32_imeadv_request_backward_char_lparam backward_char = { hWnd, 1 };
-                my_wait_message<WM_W32_IMEADV_NOTIFY_BACKWARD_CHAR>( hWnd , [&]()->DWORD{
-                  return static_cast<int>(SendMessage( communication_window_handle ,
-                                                       WM_W32_IMEADV_REQUEST_BACKWARD_CHAR ,
-                                                       reinterpret_cast<WPARAM>(hWnd),
-                                                       reinterpret_cast<LPARAM>(&backward_char) ) );
-                } );
-                w32_imeadv_request_delete_char_lparam delete_char = { hWnd , 1 };
-                my_wait_message<WM_W32_IMEADV_NOTIFY_DELETE_CHAR>( hWnd , [&]()->int{
-                  return static_cast<int>(SendMessage( communication_window_handle ,
-                                                       WM_W32_IMEADV_REQUEST_DELETE_CHAR ,
-                                                       reinterpret_cast<WPARAM>( hWnd ),
-                                                       reinterpret_cast<LPARAM>( &delete_char ) ));
-                });
-              }
-              return 0;
-            }
-          }
-        }
-        break;
-#endif
         
 #if 1
       case 0x58: // X Key 
