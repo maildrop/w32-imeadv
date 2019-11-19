@@ -211,12 +211,19 @@ w32_imeadv_wm_ime_startcomposition_emacs26( HWND hWnd , WPARAM wParam , LPARAM l
   LRESULT const result = ::DefSubclassProc( hWnd , WM_IME_STARTCOMPOSITION , wParam , lParam );
   // ここでの問題点は、GNU版の Emacs は Lispスレッドが、何度も WM_IME_STARTCOMPOSITION を連打するという問題がある。
   // これはバグだと思うが、オリジナルを修正しないようにするためには、ここでフィルタする
+
   if( ignore_wm_ime_start_composition ){
     return result;
   }
   ignore_wm_ime_start_composition = 1;
-  /* この関数は SubClassProc であって、「DefSubclassProc 呼び出し、DefWindowProc は呼び出さない」というのが通常の
-     作り方であるが、そもそもの問題点は、(emacs 26 までは) ウィンドウプロシージャがDefWindowProc を呼び出さないために
+
+  /* 
+     注意： 最初の DefSubclassProc() および Emacs の w32fns.c の確認が必要 
+     
+     この関数は SubClassProc であって、「DefSubclassProc 呼び出し、DefWindowProc は呼び出さない」というのが通常の
+     作り方である
+
+     しかしながら、問題点は、(emacs 26.1 までは) ウィンドウプロシージャがDefWindowProc を呼び出さないために
      IMEのover-the-spot 変換が動作しないという事であった。
      ここでは、 DefSubclassProc を呼び出した上に、DefWindowProc で動作を変更するというのが最も重要な仕事である。 */
   return ::DefWindowProc( hWnd , WM_IME_STARTCOMPOSITION , wParam , lParam );
@@ -227,6 +234,9 @@ w32_imeadv_wm_ime_startcomposition_emacs26( HWND hWnd , WPARAM wParam , LPARAM l
 static LRESULT
 w32_imeadv_wm_ime_startcomposition_emacs27( HWND hWnd , WPARAM wParam , LPARAM lParam )
 {
+  /* 
+     26.2 以降はのEmacs は、DefWindowProc を呼び出すように変更されたので、 DefSubclassProc() を呼び出すのみでよくなった
+  */
   LRESULT const result = ::DefSubclassProc( hWnd , WM_IME_STARTCOMPOSITION , wParam , lParam );
   if( ignore_wm_ime_start_composition ){
     return result;
@@ -957,22 +967,6 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
 
   if ( WM_W32_IMEADV_SUBCLASSIFY == uMsg )
     {
-      // これは、ウィンドウを開いたときに IME が動作しないことがあるという問題に対応するため
-      // 一旦ウィンドウを開けたり閉じたりする必要がある。 どうしてなのかはわからない。
-      HIMC hImc = ImmGetContext( hWnd );
-      if( hImc )
-        {
-          const BOOL openStatus = ImmGetOpenStatus( hImc );
-          if( ImmSetOpenStatus( hImc , ! openStatus ) )
-            if( ImmSetOpenStatus( hImc , openStatus ) )
-              ; // success 
-            else
-              DebugOutputStatic( "w32-imeadv subclass_proc second ImmSetStateus failed");
-          else
-            DebugOutputStatic( "w32-imeadv subclass_proc first ImmSetStateus failed" );
-          VERIFY(ImmReleaseContext( hWnd , hImc ));
-        }
-      
       HWND communication_window_handle = (HWND)(wParam);
       SetProp( hWnd , "W32_IMM32ADV_COMWIN" , (communication_window_handle ) );
       VERIFY(PostMessageW( communication_window_handle , WM_W32_IMEADV_SUBCLASSIFY , (WPARAM)( hWnd ) , 0));
