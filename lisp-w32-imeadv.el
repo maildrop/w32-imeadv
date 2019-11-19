@@ -32,15 +32,16 @@
     (defun w32-imeadv--notify-composition-font()
       "IMEが使うフォントを選択する。"
       (interactive)
-      (let ( (w32-imeadv-ime-composition-font-attributes
-               (if (and (boundp 'w32-imeadv-ime-composition-font-attributes)
-                        (not (null w32-imeadv-ime-composition-font-attributes )))
-                   w32-imeadv-ime-composition-font-attributes
-                 (font-face-attributes (face-font 'default nil ?あ )))) ) ; ?あ or (char-before)
+      (progn
         ;; フォントの調整をする機会をユーザーに与える
-        (run-hooks 'w32-imeadv-composition-font-hook)
-        (w32-imeadv-advertise-ime-composition-font-internal w32-imeadv-ime-composition-font-attributes )
-        ))
+        (unwind-protect 
+            (run-hooks 'w32-imeadv-composition-font-hook)
+          (let ( (font-attributes
+                  (if (and (boundp 'w32-imeadv-ime-composition-font-attributes)
+                           (not (null w32-imeadv-ime-composition-font-attributes )))
+                      w32-imeadv-ime-composition-font-attributes
+                    (font-face-attributes (face-font 'default nil ?あ )))) ) ; ?あ or (char-before)
+            (w32-imeadv-advertise-ime-composition-font-internal font-attributes )))))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;; w32-imeadv のローレベルな有効化 
@@ -79,16 +80,15 @@
     ;; IME が on になったときに呼ばれるフック関数
     (add-hook 'w32-imeadv-ime-on-hook
               (lambda ()
-                (run-hooks 'input-method-activate-hook)
                 (setq deactivate-current-input-method-function 'w32-imeadv-state-switch)
-                (setq current-input-method "W32-IMEADV")))
+                (setq current-input-method "W32-IMEADV")
+		        (run-hooks 'input-method-activate-hook))) ;; 既にIMEはonになった後なのでフックを呼ぶのは最後
     ;; IME が off になったときに呼ばれるフック関数
     (add-hook 'w32-imeadv-ime-off-hook
               (lambda ()
                 (setq deactivate-current-input-method-function nil)
-                (run-hooks 'input-method-deactivate-hook)
-                (setq current-input-method nil)))
-
+                (setq current-input-method nil)
+		        (run-hooks 'input-method-deactivate-hook))) ;; 既にIMEはoffになった後なのでフックを呼ぶのは最後
 
     )) ;; end of initialize w32-imeadv
 
