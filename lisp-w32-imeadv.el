@@ -64,7 +64,7 @@
       "w32-imeadv-state-switch method"
       (if arg
           (progn
-            (setq describe-current-input-method-function nil)
+            (setq describe-current-input-method-function 'w32-imeadv-state-switch)
             ;; このw32-imeadv-set-openstatus-open が w32-imeadv-ime-on-hook を呼び
             ;; そこから input-method-activate-hook が呼ばれる
             (w32-imeadv-set-openstatus-open (string-to-number (frame-parameter (selected-frame) 'window-id))))
