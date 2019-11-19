@@ -199,10 +199,10 @@ my_wait_message( HWND hWnd , const message_transporter_t& message_transporter)
 /* emacs 27 からは、eamcs 本体が DefWindowProc を呼び出すので、
    w32_imeadv_wm_ime_startcomposition_emacs26 は、 DefSubclassProc を呼び出した上で
    さらに DefWindowProc を呼び出すことによって、 emacs が （意図的に） DefWindowProc を呼び出さない
-   問題にに対処している。
+   問題に対処している。
    
    emacs 27 からは emacs 本体が DefwindowProc を呼び出すので、
-   w32_imeadv_wm_ime_startcomposition_emacs27 は、 DefwindowProc を呼び出すのみである */
+   w32_imeadv_wm_ime_startcomposition_emacs27 は、 DefSubClassProc を呼び出すのみである */
 
 static LRESULT
 w32_imeadv_wm_ime_startcomposition_emacs26( HWND hWnd , WPARAM wParam , LPARAM lParam )
@@ -858,17 +858,28 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
       {
         std::unique_lock<decltype( w32_imeadv_runtime_environment.mutex )>
           lock( w32_imeadv_runtime_environment.mutex );
-        emacs_is_broken_ime_startcomposition = 
-          ! (26 < w32_imeadv_runtime_environment.emacs_major_version );
+
+        if( w32_imeadv_runtime_environment.emacs_major_version < 27 )
+          {
+            switch( w32_imeadv_runtime_environment.emacs_minor_version )
+              {
+              case 0:
+              case 1:
+                emacs_is_broken_ime_startcomposition = true;
+                break;
+                /* w32fns.c の WM_IME_STARTCOMPOSITION で DefWindowProc を呼び出さない問題は、 26.1 と 26.2 の間で修正された。 */
+                /* このため 26.1 の時のみ 動作を変える (26.0は、開発バージョンなので普通使われない はず）*/
+              default:
+                emacs_is_broken_ime_startcomposition = false;
+                break;
+              }
+          }
       }
-      if( ! emacs_is_broken_ime_startcomposition )
-        {
-          return w32_imeadv_wm_ime_startcomposition_emacs27( hWnd ,wParam , lParam);
-        }
-      else
-        {
+      
+      if( emacs_is_broken_ime_startcomposition )
           return w32_imeadv_wm_ime_startcomposition_emacs26( hWnd ,wParam , lParam);
-        }
+      else
+          return w32_imeadv_wm_ime_startcomposition_emacs27( hWnd ,wParam , lParam);
     }
   case WM_IME_ENDCOMPOSITION:
     return w32_imeadv_wm_ime_endcomposition( hWnd, wParam , lParam );
