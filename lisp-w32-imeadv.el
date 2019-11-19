@@ -65,30 +65,54 @@
       "w32-imeadv-state-switch method"
       (if arg
           (progn
-            (setq describe-current-input-method-function 'w32-imeadv-state-switch)
             ;; このw32-imeadv-set-openstatus-open が w32-imeadv-ime-on-hook を呼び
             ;; そこから input-method-activate-hook が呼ばれる
             (w32-imeadv-set-openstatus-open (string-to-number (frame-parameter (selected-frame) 'window-id))))
         (progn
-          (setq describe-current-input-method-function nil)
           ;; このw32-imeadv-set-openstatus-close が w32-imeadv-ime-off-hook を呼び
           ;; そこから input-method-deactivate-hook が呼ばれる
           (w32-imeadv-set-openstatus-close (string-to-number (frame-parameter (selected-frame) 'window-id))))))
     ;; mule-cmds.el の input-method に W32-IMEADV を登録する
     (register-input-method "W32-IMEADV" "Japanese" 'w32-imeadv-state-switch "" "Microsoft Windows System IME" )
 
+    (defun w32-imeadv-on-hook-foreach-buffer-function (list)
+      "w32-imeadv が on になった時にローカル変数を設定する
+current-input-method describe-current-input-method-function deactivate-current-input-method-function 
+の各変数は、バッファローカルな変数で、それぞれバッファ事に、InputMethodを切り替えることができるようになっているが、WindowsのIMEは、グローバルに作用するので
+すべてのバッファの変数をそれぞれ設定しなおす。"
+      (when list
+        (let ((buffer (car list)))
+          (with-current-buffer buffer       
+            (setq current-input-method "W32-IMEADV")
+            (setq describe-current-input-method-function 'w32-imeadv-state-switch)
+            (setq deactivate-current-input-method-function 'w32-imeadv-state-switch) ))
+        (w32-imeadv-on-hook-foreach-buffer-function (cdr list))))
+
     ;; IME が on になったときに呼ばれるフック関数
     (add-hook 'w32-imeadv-ime-on-hook
               (lambda ()
-                (setq deactivate-current-input-method-function 'w32-imeadv-state-switch)
-                (setq current-input-method "W32-IMEADV")
-		        (run-hooks 'input-method-activate-hook))) ;; 既にIMEはonになった後なのでフックを呼ぶのは最後
+                (w32-imeadv-on-hook-foreach-buffer-function (buffer-list))
+                (unwind-protect (run-hooks 'input-method-activate-hook))))
+
+    (defun w32-imeadv-off-hook-foreach-buffer-function (list)
+      "w32-imeadv が off になった時にローカル変数を設定する
+current-input-method describe-current-input-method-function deactivate-current-input-method-function 
+の各変数は、バッファローカルな変数で、それぞれバッファ事に、InputMethodを切り替えることができるようになっているが、WindowsのIMEは、グローバルに作用するので
+すべてのバッファの変数をそれぞれ設定しなおす。"
+      (when list
+        (let ((buffer (car list)))
+          (with-current-buffer buffer       
+            (setq current-input-method nil)
+            (setq describe-current-input-method-function nil)
+            (setq deactivate-current-input-method-function nil) ))
+        (w32-imeadv-off-hook-foreach-buffer-function (cdr list))))
+    
     ;; IME が off になったときに呼ばれるフック関数
     (add-hook 'w32-imeadv-ime-off-hook
               (lambda ()
-                (setq deactivate-current-input-method-function nil)
-                (setq current-input-method nil)
-		        (run-hooks 'input-method-deactivate-hook))) ;; 既にIMEはoffになった後なのでフックを呼ぶのは最後
+                (unwind-protect 
+                    (run-hooks 'input-method-deactivate-hook) 
+                  (w32-imeadv-off-hook-foreach-buffer-function (buffer-list)))))
 
     )) ;; end of initialize w32-imeadv
 
