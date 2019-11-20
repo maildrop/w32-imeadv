@@ -86,12 +86,12 @@ my_wait_message( HWND hWnd , const message_transporter_t& message_transporter)
   
   SUBCLASSPROC const subclass_proc
     = [](HWND hWnd, UINT uMsg , WPARAM wParam , LPARAM lParam, UINT_PTR , DWORD_PTR dwRefData) -> LRESULT {
-        if( WaitMessage == uMsg ){
-          int* ptr = reinterpret_cast<int*>( dwRefData );
-          ++(*ptr);
-        }
-        return ::DefSubclassProc( hWnd, uMsg , wParam , lParam );
-      };
+      if( WaitMessage == uMsg ){
+        int* ptr = reinterpret_cast<int*>( dwRefData );
+        ++(*ptr);
+      }
+      return ::DefSubclassProc( hWnd, uMsg , wParam , lParam );
+    };
   
   UINT_PTR const uIdSubclass = reinterpret_cast<UINT_PTR const >( subclass_proc );
 
@@ -377,14 +377,14 @@ w32_imeadv_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
       if( communication_window_handle ){
         my_wait_message<WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT>(hWnd, 
                                                                ([&]()->int{
-                                                                  // Wait Conversion Message
-                                                                  OutputDebugStringA( "IMR_COMPOSITIONFONT waiting message\n");
-                                                                  if( SendMessageW( communication_window_handle , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT ,
-                                                                                    reinterpret_cast<WPARAM>(hWnd) , 0  ) ){
-                                                                    return 1;
-                                                                  }
-                                                                  return 0;
-                                                                }));
+                                                                 // Wait Conversion Message
+                                                                 OutputDebugStringA( "IMR_COMPOSITIONFONT waiting message\n");
+                                                                 if( SendMessageW( communication_window_handle , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT ,
+                                                                                   reinterpret_cast<WPARAM>(hWnd) , 0  ) ){
+                                                                   return 1;
+                                                                 }
+                                                                 return 0;
+                                                               }));
       }
       break;
     }
@@ -637,11 +637,11 @@ static LRESULT CALLBACK w32_imeadv_ui_delete_reconversion_region( HWND hWnd, UIN
         if( dwRefData ){
           w32_imeadv_request_delete_char_lparam delete_char = { hWnd , size_t( dwRefData ) };
           my_wait_message<WM_W32_IMEADV_NOTIFY_DELETE_CHAR>( hWnd , [&]()->int{
-                                                                      return static_cast<int>(SendMessage( communication_window_handle ,
-                                                                                                           WM_W32_IMEADV_REQUEST_DELETE_CHAR ,
-                                                                                                           reinterpret_cast<WPARAM>( hWnd ),
-                                                                                                           reinterpret_cast<LPARAM>( &delete_char ) ));
-                                                                    });
+            return static_cast<int>(SendMessage( communication_window_handle ,
+                                                 WM_W32_IMEADV_REQUEST_DELETE_CHAR ,
+                                                 reinterpret_cast<WPARAM>( hWnd ),
+                                                 reinterpret_cast<LPARAM>( &delete_char ) ));
+          });
         }
       }
       VERIFY( RemoveWindowSubclass( hWnd , w32_imeadv_ui_delete_reconversion_region , uIdSubclass ) );
@@ -791,15 +791,15 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
      確定undo の動作を修正する。
      ATOK で Ctrl+Backspace を押したときに 素早く Ctrl キーを離すと、素直な動作( MS-IME と同じ ）
      Ctrl キーを離さないと Google 日本語入力と同じ動作をする
-   */
+  */
   if( WM_KEYDOWN == uMsg || WM_KEYUP == uMsg ){
     if( VK_BACK == wParam ){
       /*
-      if( uMsg == WM_KEYDOWN ){
+        if( uMsg == WM_KEYDOWN ){
         OutputDebugStringA("WM_KEYDOWN : VK_BACK + VK_CONTROL\n");
-      }else if( uMsg == WM_KEYUP ){
+        }else if( uMsg == WM_KEYUP ){
         OutputDebugStringA("WM_KEYUP   : VK_BACK + VK_CONTROL\n");
-      }
+        }
       */
       if( GetAsyncKeyState( VK_CONTROL ) ){
         bool isOpenImm = false;
@@ -898,9 +898,9 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
       }
       
       if( emacs_is_broken_ime_startcomposition )
-          return w32_imeadv_wm_ime_startcomposition_emacs26( hWnd ,wParam , lParam);
+        return w32_imeadv_wm_ime_startcomposition_emacs26( hWnd ,wParam , lParam);
       else
-          return w32_imeadv_wm_ime_startcomposition_emacs27( hWnd ,wParam , lParam);
+        return w32_imeadv_wm_ime_startcomposition_emacs27( hWnd ,wParam , lParam);
     }
   case WM_IME_ENDCOMPOSITION:
     return w32_imeadv_wm_ime_endcomposition( hWnd, wParam , lParam );
