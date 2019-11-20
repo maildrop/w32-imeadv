@@ -109,7 +109,9 @@ w32_imeadv_lispy_communication_wnd_proc_impl( UserData* user_data_ptr ,
           if( response_wnd ){
             return SendMessageW( response_wnd , WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT , wParam , lParam );
           }else{
+#if !defined( NDEBUG )
             DebugOutputStatic( "response_wnd is null" );
+#endif /* !defined( NDEBUG ) */
           }
         }
       }
@@ -521,9 +523,7 @@ BOOL w32_imeadv::subclassify_hwnd( HWND hWnd , DWORD_PTR dwRefData)
                   // 
                   // 自分自身をフックチェーンから、外す。
                   if( ! UnhookWindowsHookEx( hook_parameter.subclassify_hook ) ){
-#if !defined( NDEBUG )
                     DebugOutputStatic( "UnhookWindowsHookEx() faild" );
-#endif /* !defined( NDEBUG ) */
                   }                  
                   hook_parameter.subclassify_hook = 0;
                   return nexthook_result;

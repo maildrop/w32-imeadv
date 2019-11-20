@@ -365,7 +365,9 @@ w32_imeadv_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
   switch( wParam ){
   case IMR_CANDIDATEWINDOW:
     {
+#if !defined( NDEBUG )
       DebugOutputStatic("w32_imeadv_wm_ime_request -> IMR_CANDIDATEWINDOW" );
+#endif /* !defined( NDEBUG ) */
       break;
     }
 
@@ -390,13 +392,17 @@ w32_imeadv_wm_ime_request( HWND hWnd , WPARAM wParam , LPARAM lParam )
 
   case IMR_COMPOSITIONWINDOW:
     {
+#if !defined( NDEBUG )
       DebugOutputStatic("w32_imeadv_wm_ime_request -> IMR_COMPOSITIONWINDOW");
+#endif /* !defined( NDEBUG ) */
       break;
     }
     
   case IMR_CONFIRMRECONVERTSTRING:
     {
+#if !defined( NDEBUG )
       DebugOutputStatic( "w32_imeadv_wm_ime_request -> IMR_CONFIRMRECONVERTSTRING" );
+#endif /* !defined( NDEBUG ) */
     }
     break;
 
@@ -566,7 +572,10 @@ w32_imeadv_null( HWND hWnd , WPARAM wParam , LPARAM lParam )
 static LRESULT
 w32_imeadv_openstatus_open( HWND hWnd , WPARAM wParam , LPARAM lParam )
 {
+#if !defined( NDEBUG )
   DebugOutputStatic("w32_imeadv_openstatus_open");
+#endif /* !defined( NDEBUG ) */
+
   HIMC hImc = ImmGetContext( hWnd );
   if( hImc ){
     VERIFY(ImmSetOpenStatus( hImc , TRUE ));
@@ -579,7 +588,10 @@ w32_imeadv_openstatus_open( HWND hWnd , WPARAM wParam , LPARAM lParam )
 static LRESULT
 w32_imeadv_openstatus_close( HWND hWnd , WPARAM wParam , LPARAM lParam )
 {
+#if !defined( NDEBUG )
   DebugOutputStatic("w32_imeadv_openstatus_close");
+#endif /* !defined( NDEBUG ) */
+
   HIMC hImc = ImmGetContext( hWnd );
   if( hImc ){
     VERIFY(ImmSetOpenStatus( hImc, FALSE ));
