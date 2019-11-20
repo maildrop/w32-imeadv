@@ -13,11 +13,29 @@
     (let ( (process-connection-type nil )        ; pipe を使います
            ;(process-adaptive-read-buffering nil) ; adaprive である必要はありません
            (process-name "emacs-imm32-input-proxy") )
-      (start-process process-name nil
-                     "rundll32.exe"
-                     (w32-imeadv--get-module-filename)
-                     "EntryPoint"
-                     (number-to-string (w32-imeadv--get-communication-hwnd))) 
+                                        ; サブプロセス(rundll32.exe)の環境を設定するにあたって、PATHの設定をする、
+                                        ; exec-pathに記されたディレクトリを走査していって、
+                                        ; w32-imeadv.dllが必要とする三つのファイルのうちどれかがあれば、
+                                        ; それを環境変数PATHの中に入れておく。
+      (let ((process-environment (list (let ((findlibs nil))
+                                         (setq findlibs (lambda (list)
+                                                          (if list
+                                                              (let ((path (car list)))
+                                                                (if (or (file-exists-p (concat (file-name-as-directory path) "libstdc++-6.dll"))
+                                                                        (file-exists-p (concat (file-name-as-directory path) "libgcc_s_seh-1.dll"))
+                                                                        (file-exists-p (concat (file-name-as-directory path) "libwinpthread-1.dll")))
+                                                                    (cons path (funcall findlibs (cdr list)))
+                                                                  (funcall findlibs (cdr list))))
+                                                            '() )))
+                                         (concat "PATH=" (mapconcat #'identity (funcall findlibs exec-path) ";")))))
+            (exec-direcotry (file-name-directory (w32-imeadv--get-module-filename))))
+        
+        (start-process process-name nil
+                       "rundll32.exe"
+                       (w32-imeadv--get-module-filename)
+                       "EntryPoint"
+                       (number-to-string (w32-imeadv--get-communication-hwnd))))
+
       (set-process-filter (get-process process-name) 'w32-imeadv--defualt-message-input-handler )
       (set-process-query-on-exit-flag (get-process process-name) nil)
       (add-hook 'kill-emacs-hook (lambda () (when (process-live-p (get-process "emacs-imm32-input-proxy"))
