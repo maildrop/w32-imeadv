@@ -145,7 +145,7 @@ current-input-method describe-current-input-method-function deactivate-current-i
 すべてのバッファの変数をそれぞれ設定しなおす。"
       (when (string= "W32-IMEADV" default-input-method)
         (let ( (openstatus (w32-imeadv-get-openstatus (string-to-number (frame-parameter (selected-frame) 'window-id))))
-	           (w32-imeadv-buffer-list-update-hook-foreach nil) )
+	       (w32-imeadv-buffer-list-update-hook-foreach nil) )
           (setq w32-imeadv-buffer-list-update-hook-foreach (lambda (list)
                                                              (when list
                                                                (with-current-buffer (car list)
@@ -192,13 +192,13 @@ current-input-method describe-current-input-method-function deactivate-current-i
   (add-hook 'w32-imeadv-ime-on-hook
             (lambda ()
               (setq w32-imeadv-status-line (nth 1 w32-imeadv-status-line-format))
-              (force-mode-line-update)) )
+              (force-mode-line-update t)) )
 
   ;; IME が off になったときに呼ばれるフック関数
   (add-hook 'w32-imeadv-ime-off-hook
             (lambda ()
               (setq w32-imeadv-status-line (nth 0 w32-imeadv-status-line-format))
-              (force-mode-line-update) ) )
+              (force-mode-line-update t) ) )
 
   ;; isearch modeに入る時に IME をオフにする
   (add-hook 'isearch-mode-hook 'deactivate-input-method )
@@ -215,13 +215,24 @@ current-input-method describe-current-input-method-function deactivate-current-i
   (when w32-imeadv-ime-openstatus-indicate-cursor-color-enable
     (defvar w32-imeadv-ime-openstatus-indicate-cursor-color "coral4")
     (defvar w32-imeadv-ime-closestatus-indicate-cursor-color (frame-parameter (selected-frame) 'cursor-color))
-    (setq w32-imeadv-ime-on-hook-color-stack nil) ; カーソルの色を保持するスタック
     (add-hook 'input-method-activate-hook
               (lambda ()
-                (set-cursor-color w32-imeadv-ime-openstatus-indicate-cursor-color)))
+                (let ((color-name w32-imeadv-ime-openstatus-indicate-cursor-color)
+                      (my-each-frame nil))
+                  (setq my-each-frame (lambda (list)
+                                        (when list
+                                          (modify-frame-parameters (car list) (list (cons 'cursor-color color-name)))
+                                          (funcall my-each-frame (cdr list)))))
+                  (funcall my-each-frame (frame-list)))))
     (add-hook 'input-method-deactivate-hook
               (lambda ()
-                (set-cursor-color w32-imeadv-ime-closestatus-indicate-cursor-color))))
+                (let ((color-name w32-imeadv-ime-closestatus-indicate-cursor-color)
+                      (my-each-frame nil))
+                  (setq my-each-frame (lambda (list)
+                                        (when list
+                                          (modify-frame-parameters (car list) (list (cons 'cursor-color color-name)))
+                                          (funcall my-each-frame (cdr list)))))
+                  (funcall my-each-frame (frame-list))))))
 
   ;; 最後にdefault-input-method を W32-IMEADV にする。(これ重要)
   (setq default-input-method "W32-IMEADV"))
