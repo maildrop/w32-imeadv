@@ -48,7 +48,7 @@
     (defvar w32-imeadv-composition-font-hook nil)
 
     ;; w32-imeadv.dll から呼び出される Lisp の関数
-    (defun w32-imeadv--notify-composition-font ()
+    (defun w32-imeadv--notify-composition-font()
       "IMEが使うフォントを選択する。
 font-attributes に必要なフォントを設定する。フォントの選定が終わった後、フック関数w32-imeadv-composition-font-hook を呼び出す
 この関数は、正確に、(w32-imeadv-advertise-ime-composition-font-internal font-attributes)の戻り値を返さなければならない。
@@ -137,6 +137,30 @@ current-input-method describe-current-input-method-function deactivate-current-i
             (setq describe-current-input-method-function nil)
             (setq deactivate-current-input-method-function nil) ))
         (w32-imeadv-off-hook-foreach-buffer-function (cdr list))))
+
+    (defun w32-imeadv-buffer-list-update-hook ()
+      "バッファのリストが更新されたときに全てのバッファに対して、IMEの状態を更新するフック
+current-input-method describe-current-input-method-function deactivate-current-input-method-function
+の各変数は、バッファローカルな変数で、それぞれバッファ事に、InputMethodを切り替えることができるようになっているが、WindowsのIMEは、グローバルに作用するので
+すべてのバッファの変数をそれぞれ設定しなおす。"
+      (when (string= "W32-IMEADV" default-input-method)
+        (let ( (openstatus (w32-imeadv-get-openstatus (string-to-number (frame-parameter (selected-frame) 'window-id))))
+	           (w32-imeadv-buffer-list-update-hook-foreach nil) )
+          (setq w32-imeadv-buffer-list-update-hook-foreach (lambda (list)
+                                                             (when list
+                                                               (with-current-buffer (car list)
+                                                                 (if openstatus
+                                                                     (progn
+                                                                       (setq current-input-method "W32-IMEADV")
+                                                                       (setq describe-current-input-method-function 'w32-imeadv-state-switch)
+                                                                       (setq deactivate-current-input-method-function 'w32-imeadv-state-switch))
+                                                                   (progn
+                                                                     (setq current-input-method nil)
+                                                                     (setq describe-current-input-method-function nil)
+                                                                     (setq deactivate-current-input-method-function nil))))
+                                                               (funcall w32-imeadv-buffer-list-update-hook-foreach (cdr list)))))
+          (funcall w32-imeadv-buffer-list-update-hook-foreach (buffer-list)))))
+    (add-hook 'buffer-list-update-hook 'w32-imeadv-buffer-list-update-hook)
 
     ;; IME が off になったときに呼ばれるフック関数
     (add-hook 'w32-imeadv-ime-off-hook
