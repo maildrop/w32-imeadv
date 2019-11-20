@@ -17,6 +17,7 @@
                                         ; exec-pathに記されたディレクトリを走査していって、
                                         ; w32-imeadv.dllが必要とする三つのファイルのうちどれかがあれば、
                                         ; それを環境変数PATHの中に入れておく。
+      
       (let ((process-environment (list (let ((findlibs nil))
                                          (setq findlibs (lambda (list)
                                                           (if list
@@ -27,7 +28,7 @@
                                                                     (cons path (funcall findlibs (cdr list)))
                                                                   (funcall findlibs (cdr list))))
                                                             '() )))
-                                         (concat "PATH=" (mapconcat #'identity (funcall findlibs exec-path) ";")))))
+                                         (concat "PATH=" (mapconcat #'identity (funcall findlibs (cons invocation-directory exec-path)) ";")))))
             (exec-direcotry (file-name-directory (w32-imeadv--get-module-filename))))
         
         (start-process process-name nil
