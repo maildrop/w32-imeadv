@@ -7,17 +7,17 @@
            window-system                  ; Window システムがあって
            (locate-library "w32-imeadv")) ; w32-imeadvが存在していれば、
   (load "w32-imeadv") ; w32-imeadv をロードする。
-  
+
   (when (w32-imeadv-initialize) ; w32-imeadv-initialize は失敗することがあります。
-    ; 通知用のサブプロセス( UIスレッドのイベントを、self-pipe-trick で、入力へ変換する ) の起動
+                                        ; 通知用のサブプロセス( UIスレッドのイベントを、self-pipe-trick で、入力へ変換する ) の起動
     (let ( (process-connection-type nil )        ; pipe を使います
-           ;(process-adaptive-read-buffering nil) ; adaprive である必要はありません
+                                        ;(process-adaptive-read-buffering nil) ; adaprive である必要はありません
            (process-name "emacs-imm32-input-proxy") )
                                         ; サブプロセス(rundll32.exe)の環境を設定するにあたって、PATHの設定をする、
                                         ; exec-pathに記されたディレクトリを走査していって、
                                         ; w32-imeadv.dllが必要とする三つのファイルのうちどれかがあれば、
                                         ; それを環境変数PATHの中に入れておく。
-      
+
       (let ((process-environment (list (let ((findlibs nil))
                                          (setq findlibs (lambda (list)
                                                           (if list
@@ -30,7 +30,7 @@
                                                             '() )))
                                          (concat "PATH=" (mapconcat #'identity (funcall findlibs (cons invocation-directory exec-path)) ";")))))
             (exec-direcotry (file-name-directory (w32-imeadv--get-module-filename))))
-        
+
         (start-process process-name nil
                        "rundll32.exe"
                        (w32-imeadv--get-module-filename)
@@ -46,26 +46,38 @@
     ;; IME Composition フォントの設定
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (defvar w32-imeadv-composition-font-hook nil)
-    
+
     ;; w32-imeadv.dll から呼び出される Lisp の関数
-    (defun w32-imeadv--notify-composition-font()
-      "IMEが使うフォントを選択する。"
+    (defun w32-imeadv--notify-composition-font ()
+      "IMEが使うフォントを選択する。
+font-attributes に必要なフォントを設定する。フォントの選定が終わった後、フック関数w32-imeadv-composition-font-hook を呼び出す
+この関数は、正確に、(w32-imeadv-advertise-ime-composition-font-internal font-attributes)の戻り値を返さなければならない。
+
+w32-imeadvは、w32-imeadv-advertise-ime-composition-font-internalでUIスレッドに IMEに使用して欲しいフォントを通知するが、
+w32-imeadv--notify-composition-font が nil を返すと、UIスレッドの待機を解除するために、呼び出し元のCのソース部分がfallbackでメッセージを送る。
+（元々は、関数w32-imeadv--notify-composition-font 自体が何らかの理由で失敗したときにUIを復帰させるためのコード）
+
+このfallback動作が無いと、UIスレッドがフリーズしてしまう。
+最悪なのは、UIスレッドがフリーズして動作が復帰しないことなので安全装置としてこの動作はご容赦いただきたい。
+
+そして、w32-imeadv-advertise-ime-composition-font-internal の呼び出しが成功しているにもかかわらずこのfallback動作が発動した場合
+通常は無視される動作になるが、別の理由（再変換領域の調査など）でUIスレッドが待機している状態にフォントを通知するタイミングが重なると、
+これもまたUIスレッドが待機状態になってタイムアウトを待つ状態になる。（おおよそ3回リトライして、そのインターバルは1秒なので計4秒 大体5秒ぐらい）
+よってこの関数は、正確に(w32-imeadv-advertise-ime-composition-font-internal font-attributes)の戻り値を返すことを要求する"
       (interactive)
-      (progn
-        ;; フォントの調整をする機会をユーザーに与える
-        (unwind-protect 
-            (run-hooks 'w32-imeadv-composition-font-hook)
-          (let ( (font-attributes
-                  (if (and (boundp 'w32-imeadv-ime-composition-font-attributes)
-                           (not (null w32-imeadv-ime-composition-font-attributes )))
-                      w32-imeadv-ime-composition-font-attributes
-                    (font-face-attributes (face-font 'default nil ?あ )))) ) ; ?あ or (char-before)
-            (w32-imeadv-advertise-ime-composition-font-internal font-attributes )))))
+      ;; フォントの調整をする機会をユーザーに与える
+      (let ( (font-attributes
+              (if (and (boundp 'w32-imeadv-ime-composition-font-attributes)
+                       (not (null w32-imeadv-ime-composition-font-attributes )))
+                  w32-imeadv-ime-composition-font-attributes
+                (font-face-attributes (face-font 'default nil ?あ )))) ) ; ?あ or (char-before)
+        (run-hooks 'w32-imeadv-composition-font-hook)
+        (w32-imeadv-advertise-ime-composition-font-internal font-attributes )))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    ;; w32-imeadv のローレベルな有効化 
+    ;; w32-imeadv のローレベルな有効化
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    
+
     ;; 今は、init.el の中なので、最初のフレームに対して、 w32-imeadv-inject-control する。
     ;; selected-frame（現在のフレーム）にw32-imeadvを導入する
     (w32-imeadv-inject-control (string-to-number (frame-parameter (selected-frame)'window-id)))
@@ -78,7 +90,7 @@
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;; mule-cmd.el の利用
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    
+
     ;; mule-cmd.el の input-method の仕組みに合わせて、state-switch を作る
     (defun w32-imeadv-state-switch ( &optional arg )
       "w32-imeadv-state-switch method"
@@ -96,12 +108,12 @@
 
     (defun w32-imeadv-on-hook-foreach-buffer-function (list)
       "w32-imeadv が on になった時にローカル変数を設定する
-current-input-method describe-current-input-method-function deactivate-current-input-method-function 
+current-input-method describe-current-input-method-function deactivate-current-input-method-function
 の各変数は、バッファローカルな変数で、それぞれバッファ事に、InputMethodを切り替えることができるようになっているが、WindowsのIMEは、グローバルに作用するので
 すべてのバッファの変数をそれぞれ設定しなおす。"
       (when list
         (let ((buffer (car list)))
-          (with-current-buffer buffer       
+          (with-current-buffer buffer
             (setq current-input-method "W32-IMEADV")
             (setq describe-current-input-method-function 'w32-imeadv-state-switch)
             (setq deactivate-current-input-method-function 'w32-imeadv-state-switch) ))
@@ -115,22 +127,22 @@ current-input-method describe-current-input-method-function deactivate-current-i
 
     (defun w32-imeadv-off-hook-foreach-buffer-function (list)
       "w32-imeadv が off になった時にローカル変数を設定する
-current-input-method describe-current-input-method-function deactivate-current-input-method-function 
+current-input-method describe-current-input-method-function deactivate-current-input-method-function
 の各変数は、バッファローカルな変数で、それぞれバッファ事に、InputMethodを切り替えることができるようになっているが、WindowsのIMEは、グローバルに作用するので
 すべてのバッファの変数をそれぞれ設定しなおす。"
       (when list
         (let ((buffer (car list)))
-          (with-current-buffer buffer       
+          (with-current-buffer buffer
             (setq current-input-method nil)
             (setq describe-current-input-method-function nil)
             (setq deactivate-current-input-method-function nil) ))
         (w32-imeadv-off-hook-foreach-buffer-function (cdr list))))
-    
+
     ;; IME が off になったときに呼ばれるフック関数
     (add-hook 'w32-imeadv-ime-off-hook
               (lambda ()
-                (unwind-protect 
-                    (run-hooks 'input-method-deactivate-hook) 
+                (unwind-protect
+                    (run-hooks 'input-method-deactivate-hook)
                   (w32-imeadv-off-hook-foreach-buffer-function (buffer-list)))))
 
     )) ;; end of initialize w32-imeadv
@@ -144,10 +156,10 @@ current-input-method describe-current-input-method-function deactivate-current-i
            window-system                  ; Window システムがあって
            (locate-library "w32-imeadv")) ; w32-imeadvが存在していれば、
 
-  ;; ステータスラインの設定 
+  ;; ステータスラインの設定
   (defvar w32-imeadv-status-line-format (list "[　]" "[あ]") )
   (defvar w32-imeadv-status-line (nth 0 w32-imeadv-status-line-format) )
-  
+
   (defun w32-imeadv-status-line-show ()
     "Get a string to be displayed on the mode-line."
     (format "%s" w32-imeadv-status-line ))
@@ -157,40 +169,36 @@ current-input-method describe-current-input-method-function deactivate-current-i
             (lambda ()
               (setq w32-imeadv-status-line (nth 1 w32-imeadv-status-line-format))
               (force-mode-line-update)) )
-  
+
   ;; IME が off になったときに呼ばれるフック関数
   (add-hook 'w32-imeadv-ime-off-hook
             (lambda ()
               (setq w32-imeadv-status-line (nth 0 w32-imeadv-status-line-format))
               (force-mode-line-update) ) )
-  
+
   ;; isearch modeに入る時に IME をオフにする
   (add-hook 'isearch-mode-hook 'deactivate-input-method )
 
   ;; ミニバッファ setup hook で、IME をオフにする
   (add-hook 'minibuffer-setup-hook (lambda ()
-				                     (if (minibufferp)
-				                         (with-selected-window (minibuffer-selected-window)
-					                       (deactivate-input-method) )
-				                       (deactivate-input-method))))
+                                     (if (minibufferp)
+                                         (with-selected-window (minibuffer-selected-window)
+                                           (deactivate-input-method) )
+                                       (deactivate-input-method))))
 
   ;; 日本語入力時にカーソルの色を変える設定
   (defvar w32-imeadv-ime-openstatus-indicate-cursor-color-enable nil)
   (when w32-imeadv-ime-openstatus-indicate-cursor-color-enable
     (defvar w32-imeadv-ime-openstatus-indicate-cursor-color "coral4")
+    (defvar w32-imeadv-ime-closestatus-indicate-cursor-color (frame-parameter (selected-frame) 'cursor-color))
     (setq w32-imeadv-ime-on-hook-color-stack nil) ; カーソルの色を保持するスタック
     (add-hook 'input-method-activate-hook
               (lambda ()
-                ; フレームのパラメータから、cursor-color を取得して スタックにプッシュ
-                (push (frame-parameter (selected-frame) 'cursor-color) w32-imeadv-ime-on-hook-color-stack)
-                ; 色を変える
                 (set-cursor-color w32-imeadv-ime-openstatus-indicate-cursor-color)))
     (add-hook 'input-method-deactivate-hook
               (lambda ()
-                ; スタックから元のカーソル色を取得して、カーソルの色を変更
-                (let ( (cursol-corlor (pop w32-imeadv-ime-on-hook-color-stack)) )
-                  (when cursol-corlor
-                    (set-cursor-color cursol-corlor ))) )))
+                (set-cursor-color w32-imeadv-ime-closestatus-indicate-cursor-color))))
 
   ;; 最後にdefault-input-method を W32-IMEADV にする。(これ重要)
-  (setq default-input-method "W32-IMEADV") )
+  (setq default-input-method "W32-IMEADV"))
+
