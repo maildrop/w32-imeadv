@@ -1,5 +1,4 @@
-﻿/* -*- compile-command: "make DEBUG=1 -j" -*- */
-#include <tchar.h>
+﻿#include <tchar.h>
 #include <windows.h>
 #include <imm.h>
 #include <commctrl.h>
