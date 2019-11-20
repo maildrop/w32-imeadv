@@ -305,7 +305,7 @@ Fw32_imeadv__default_message_input_handler ( emacs_env* env ,
               // may be ui thread dead locked,
               message_utf8( env ,
                             std::string{u8"w32_imeadv::get_communication_HWND() return NULL. "
-                                "You should wait 5 sec. (WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT)" });
+                              "You should wait 5 sec. (WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT)" });
             }
           }
           break;
@@ -317,7 +317,7 @@ Fw32_imeadv__default_message_input_handler ( emacs_env* env ,
             }else{
               message_utf8( env,
                             std::string{u8"w32_imeadv::get_communication_HWND() return NULL. "
-                                "You should wait 5 sec. (WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING)" });
+                              "You should wait 5 sec. (WM_W32_IMEADV_NOTIFY_RECONVERSION_STRING)" });
             }
           }
           break;
@@ -329,7 +329,7 @@ Fw32_imeadv__default_message_input_handler ( emacs_env* env ,
             }else{
               message_utf8( env,
                             std::string{u8"w32_imeadv::get_communication_HWND() return NULL. "
-                                "You should wait 5 sec. (WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING)" });
+                              "You should wait 5 sec. (WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING)" });
             }
           }
           break;
@@ -342,7 +342,7 @@ Fw32_imeadv__default_message_input_handler ( emacs_env* env ,
             }else{
               message_utf8( env,
                             std::string{u8"w32_imeadv::get_communication_HWND() return NULL. "
-                                "You should wait 5 sec. (WM_W32_IMEADV_NOTIFY_BACKWARD_CHAR)" });
+                              "You should wait 5 sec. (WM_W32_IMEADV_NOTIFY_BACKWARD_CHAR)" });
             }
           }
           break;
@@ -355,7 +355,7 @@ Fw32_imeadv__default_message_input_handler ( emacs_env* env ,
             }else{
               message_utf8( env,
                             std::string{u8"w32_imeadv::get_communication_HWND() return NULL. "
-                                "You should wait 5 sec. (WM_W32_IMEADV_NOTIFY_DELETE_CHAR)" });
+                              "You should wait 5 sec. (WM_W32_IMEADV_NOTIFY_DELETE_CHAR)" });
             }
           }
           break;
@@ -420,8 +420,8 @@ Fw32_imeadv_set_openstatus_close( emacs_env* env,
 template<typename emacs_env_t>
 static emacs_value
 Fw32_imeadv_get_openstatus( emacs_env* env ,
-                           ptrdiff_t nargs , emacs_value args[],
-                           void *data ) EMACS_NOEXCEPT
+                            ptrdiff_t nargs , emacs_value args[],
+                            void *data ) EMACS_NOEXCEPT
 {
   if( 1 != nargs )
     return env->intern( env, u8"nil" );
