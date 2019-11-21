@@ -1,4 +1,4 @@
-
+﻿
 ifdef DEBUG
 CPPFLAGS:=-DWINVER=_WIN32_WINNT_WINXP -D_WIN32_WINNT=_WIN32_WINNT_WINXP
 CXXFLAGS:=-std=c++11 -O3 -Wall -Werror -g 
@@ -15,7 +15,7 @@ all_TARGET:=w32-imeadv.dll
 all: $(all_TARGET)
 
 w32-imeadv.dll: $(W32_IMEADV_DLL_OBJS)
-	$(CXX) --shared -o $@ $(CXXFLAGS) $(CPPFLAGS) -Wl,-Map=$(basename $@).map $+ -limm32 -lComctl32 -lgdi32 -lUser32 
+	$(CXX) --shared -o $@ $(CXXFLAGS) $(CPPFLAGS) -static-libgcc -static-libstdc++ -static -lpthread -Wl,-Map=$(basename $@).map $+ -limm32 -lComctl32 -lgdi32 -lUser32 
 emacs-imm32-input-proxy.exe: $(emacs-imm32-input-proxy_OBJS)
 	$(CXX) -o $@ $(CXXFLAGS) $(CPPFLAGS) $+ -lUser32
 
