@@ -42,6 +42,20 @@
       (add-hook 'kill-emacs-hook (lambda () (when (process-live-p (get-process "emacs-imm32-input-proxy"))
                                               (delete-process "emacs-imm32-input-proxy") t) )))
 
+    (defvar w32-imeadv--programmatic-status-change nil
+      "内部で、今IMEのon/offが、半角/全角 alt+` 変換 等でおきたのか それとも C-\ のmule-cmd.el 由来のものなのかを判別するために使う
+
+mule-cmd.el 由来の場合 input-method-activate-hook /
+input-method-deactivate-hook の呼び出しが mule-cmd.el の内部で行われる
+プロセスキーの押下で変換動作が始まる時には、w32-imeadv-ime-{on,off}-hookがこれを模倣するのであるが、mule-cmd.el 経
+由で w32-imeadv-state-switchからの呼び出しの場合 w32-imeadv-set-openstatus-open で IME がオン になった時に
+UIスレッドからの通知で、 w32-imeadv-ime-{on,off}-hook が起動される。
+この場合 二度 input-method-{activate,deactivate}-hookが呼び出されることになり、都合が悪い。
+そこで、mule-cmd.el 経由のIMEのon,offの場合 w32-imeadv--programmatic-status-change に t を仕掛けて置き
+w32-imeadv-ime-{on,off}-hook では w32-imeadv--programmatic-status-change が t の時は nil を設定
+nil の時は、input-method-{activate,deactivate}-hook を呼び出すという動作を行う
+")
+
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;; IME Composition フォントの設定
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -94,6 +108,7 @@ w32-imeadv--notify-composition-font が nil を返すと、UIスレッドの待�
     ;; mule-cmd.el の input-method の仕組みに合わせて、state-switch を作る
     (defun w32-imeadv-state-switch ( &optional arg )
       "w32-imeadv-state-switch method"
+      (setq w32-imeadv--programmatic-status-change t)
       (if arg
           (progn
             ;; このw32-imeadv-set-openstatus-open が w32-imeadv-ime-on-hook を呼び
@@ -123,7 +138,9 @@ current-input-method describe-current-input-method-function deactivate-current-i
     (add-hook 'w32-imeadv-ime-on-hook
               (lambda ()
                 (w32-imeadv-on-hook-foreach-buffer-function (buffer-list))
-                (unwind-protect (run-hooks 'input-method-activate-hook))))
+                (unless w32-imeadv--programmatic-status-change
+                  (unwind-protect (run-hooks 'input-method-activate-hook)))
+                (setq w32-imeadv--programmatic-status-change nil)))
 
     (defun w32-imeadv-off-hook-foreach-buffer-function (list)
       "w32-imeadv が off になった時にローカル変数を設定する
@@ -165,9 +182,10 @@ current-input-method describe-current-input-method-function deactivate-current-i
     ;; IME が off になったときに呼ばれるフック関数
     (add-hook 'w32-imeadv-ime-off-hook
               (lambda ()
-                (unwind-protect
-                    (run-hooks 'input-method-deactivate-hook)
-                  (w32-imeadv-off-hook-foreach-buffer-function (buffer-list)))))
+                (unless w32-imeadv--programmatic-status-change
+                  (run-hooks 'input-method-deactivate-hook))
+                (setq w32-imeadv--programmatic-status-change nil)
+                (w32-imeadv-off-hook-foreach-buffer-function (buffer-list))))
 
     )) ;; end of initialize w32-imeadv
 
@@ -210,30 +228,54 @@ current-input-method describe-current-input-method-function deactivate-current-i
                                            (deactivate-input-method) )
                                        (deactivate-input-method))))
 
-  ;; 日本語入力時にカーソルの色を変える設定
-  (defvar w32-imeadv-ime-openstatus-indicate-cursor-color-enable nil)
-  (when w32-imeadv-ime-openstatus-indicate-cursor-color-enable
-    (defvar w32-imeadv-ime-openstatus-indicate-cursor-color "coral4")
-    (defvar w32-imeadv-ime-closestatus-indicate-cursor-color (frame-parameter (selected-frame) 'cursor-color))
-    (add-hook 'input-method-activate-hook
-              (lambda ()
-                (let ((color-name w32-imeadv-ime-openstatus-indicate-cursor-color)
-                      (my-each-frame nil))
-                  (setq my-each-frame (lambda (list)
-                                        (when list
-                                          (modify-frame-parameters (car list) (list (cons 'cursor-color color-name)))
-                                          (funcall my-each-frame (cdr list)))))
-                  (funcall my-each-frame (frame-list)))))
-    (add-hook 'input-method-deactivate-hook
-              (lambda ()
-                (let ((color-name w32-imeadv-ime-closestatus-indicate-cursor-color)
-                      (my-each-frame nil))
-                  (setq my-each-frame (lambda (list)
-                                        (when list
-                                          (modify-frame-parameters (car list) (list (cons 'cursor-color color-name)))
-                                          (funcall my-each-frame (cdr list)))))
+  ;;
+  (defcustom w32-imeadv-ime-openstatus-indicate-cursor-color-enable nil
+    "IMEがonの時にカーソルの色を変える"
+    :type 'boolean
+    :options '(radio
+               (const :tag "色を変更しない" :value nil)
+               (const :tag "色を変更する" :value t))
+    :group 'mule
+    :group 'i18n
+    :group 'w32)
+  (defcustom w32-imeadv-ime-openstatus-indicate-cursor-color "coral4"
+    "IMEがonの時にカーソルの色を変える設定をしているときのIMEがonの時のカーソルの色"
+    :group 'mule
+    :group 'i18n
+    :group 'w32)
+  (defvar w32-imeadv-ime-closestatus-indicate-cursor-color nil
+    "IMEがoffになった時にフレームのカーソルカラーが戻せなくなった時に戻す色")
+
+  (add-hook 'input-method-activate-hook
+            (lambda ()
+              (when w32-imeadv-ime-openstatus-indicate-cursor-color-enable
+                (let ( (color-name w32-imeadv-ime-openstatus-indicate-cursor-color )
+                       my-each-frame)
+                  (setq my-each-frame (lambda (frames)
+                                        (when frames
+                                          (let ((mod-list (list (cons 'cursor-color color-name)))
+                                                (theframe (car frames)))
+                                            (unless (frame-parameter theframe (intern "w32-imeadv-cursor-color"))
+                                              (setq mod-list (append (list (cons (intern "w32-imeadv-cursor-color") (frame-parameter theframe 'cursor-color)))
+                                                                     mod-list)))
+                                            (modify-frame-parameters (car frames) mod-list))
+                                          (funcall my-each-frame (cdr frames)))))
+                  (funcall my-each-frame (frame-list))))))
+
+  (add-hook 'input-method-deactivate-hook
+            (lambda ()
+              (when w32-imeadv-ime-openstatus-indicate-cursor-color-enable
+                (let ( my-each-frame )
+                  (setq my-each-frame (lambda (frames)
+                                        (when frames
+                                          (let ((theframe (car frames)))
+                                            (if (frame-parameter theframe (intern "w32-imeadv-cursor-color"))
+                                                (modify-frame-parameters theframe (list (cons 'cursor-color (frame-parameter theframe (intern "w32-imeadv-cursor-color")))
+                                                                                        (cons (intern "w32-imeadv-cursor-color") nil)))
+                                              (set-frame-parameter theframe 'cursor-color (or w32-imeadv-ime-closestatus-indicate-cursor-color
+                                                                                              (frame-parameter theframe 'foreground-color))))
+                                            (funcall my-each-frame (cdr frames))))))
                   (funcall my-each-frame (frame-list))))))
 
   ;; 最後にdefault-input-method を W32-IMEADV にする。(これ重要)
   (setq default-input-method "W32-IMEADV"))
-
