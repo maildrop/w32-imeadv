@@ -200,20 +200,51 @@ current-input-method describe-current-input-method-function deactivate-current-i
 (when (and (eq system-type 'windows-nt)   ; Windows NT 上で
            window-system                  ; Window システムがあって
            (locate-library "w32-imeadv")) ; w32-imeadvが存在していれば、
-  (defcustom w32-imeadv-ime-openstatus-indicate-stateus-line-enable t
+  (defcustom w32-imeadv-ime-status-line-indicate-openstatus-enable t
     "IMEの on/off をステータスラインに表示する (非nilの時はステータスラインに表示を行う nilの時には表示をしない) デフォルトは t"
     :type 'boolean
     :group 'mule
     :group 'i18n
-    :group 'w32)
+    :group 'w32
+    :set (lambda (sym val)
+           (set-default sym val)
+           (force-mode-line-update t) ))
+
+  (defvar w32-imeadv-status-line nil )
+
+  (defcustom w32-imeadv-ime-status-line-indicate-close "[　]"
+    "ステータスラインに表示するIMEのon/off表示の off の状態 デフォルトは [　]"
+    :type 'string
+    :group 'mule
+    :group 'i18n
+    :group 'w32
+    :set (lambda (sym val)
+           (set-default sym val)
+           (if (w32-imeadv-get-openstatus (string-to-number (frame-parameter (selected-frame) 'window-id)))
+               (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-open)
+             (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-close))
+           (force-mode-line-update t) ))
+
+  (defcustom w32-imeadv-ime-status-line-indicate-open "[あ]"
+    "ステータスラインに表示するIMEのon/off表示の on の状態 デフォルトは [あ]"
+    :type 'string
+    :group 'mule
+    :group 'i18n
+    :group 'w32
+    :set (lambda (sym val)
+           (set-default sym val)
+           (if (w32-imeadv-get-openstatus (string-to-number (frame-parameter (selected-frame) 'window-id)))
+               (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-open)
+             (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-close))
+           (force-mode-line-update t) ))
 
   ;; ステータスラインの設定
-  (defvar w32-imeadv-status-line-format (list "[　]" "[あ]") )
-  (defvar w32-imeadv-status-line (nth 0 w32-imeadv-status-line-format) )
+  (defvar w32-imeadv-status-line-format (list w32-imeadv-ime-status-line-indicate-close
+                                              w32-imeadv-ime-status-line-indicate-open))
 
   (defun w32-imeadv-status-line-show ()
     "Get a string to be displayed on the mode-line."
-    (if w32-imeadv-ime-openstatus-indicate-stateus-line-enable
+    (if w32-imeadv-ime-status-line-indicate-openstatus-enable
         (format " %s" w32-imeadv-status-line )
       ""))
 
@@ -221,13 +252,13 @@ current-input-method describe-current-input-method-function deactivate-current-i
   ;; IME が on になったときに呼ばれるフック関数
   (add-hook 'w32-imeadv-ime-on-hook
             (lambda ()
-              (setq w32-imeadv-status-line (nth 1 w32-imeadv-status-line-format))
+              (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-open)
               (force-mode-line-update t)) )
 
   ;; IME が off になったときに呼ばれるフック関数
   (add-hook 'w32-imeadv-ime-off-hook
             (lambda ()
-              (setq w32-imeadv-status-line (nth 0 w32-imeadv-status-line-format))
+              (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-close)
               (force-mode-line-update t) ) )
 
   ;; isearch modeに入る時に IME をオフにする
