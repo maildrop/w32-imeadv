@@ -240,6 +240,7 @@ current-input-method describe-current-input-method-function deactivate-current-i
     :group 'w32)
   (defcustom w32-imeadv-ime-openstatus-indicate-cursor-color "coral4"
     "IMEがonの時にカーソルの色を変える設定をしているときのIMEがonの時のカーソルの色"
+    :type 'color
     :group 'mule
     :group 'i18n
     :group 'w32)
