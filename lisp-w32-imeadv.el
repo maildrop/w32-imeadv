@@ -3,8 +3,7 @@
 ;; w32-imeadv 初期化部分
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defvar default-input-method) ; mule-cmd.el
+(require 'mule)
 (defcustom w32-imeadv-ime-composition-font-investigate-char ?あ
   "IMEが使うフォントを探すためのキャラクタ"
   :type 'character
@@ -20,7 +19,7 @@
   (when (w32-imeadv-initialize) ; w32-imeadv-initialize は失敗することがあります。
     ;; 通知用のサブプロセス( UIスレッドのイベントを、self-pipe-trick で、入力へ変換する ) の起動
     (let ( (process-connection-type nil ) ; pipe を使います
-           ;(process-adaptive-read-buffering nil) ; adaprive である必要はありません
+                                        ;(process-adaptive-read-buffering nil) ; adaprive である必要はありません
            (process-name "emacs-imm32-input-proxy") )
       ;; 以下は w32-imeadv.dll がダイナミックリンク時に必要だった手順 現在はスタティックリンクなので不要
       ;; しかしながら、いつでもダイナミックリンクに戻せるように、十分テストが終わるまでそのままにしておく。
@@ -308,8 +307,8 @@ current-input-method describe-current-input-method-function deactivate-current-i
                                           (when frames
                                             (let ((mod-list (list (cons 'cursor-color color-name)))
                                                   (theframe (car frames)))
-                                              (unless (frame-parameter theframe (intern "w32-imeadv-cursor-color"))
-                                                (setq mod-list (append (list (cons (intern "w32-imeadv-cursor-color") (frame-parameter theframe 'cursor-color)))
+                                              (unless (frame-parameter theframe 'w32-imeadv-cursor-color)
+                                                (setq mod-list (append (list (cons 'w32-imeadv-cursor-color (frame-parameter theframe 'cursor-color)))
                                                                        mod-list)))
                                               (modify-frame-parameters (car frames) mod-list))
                                             (funcall my-each-frame (cdr frames)))))
@@ -322,13 +321,14 @@ current-input-method describe-current-input-method-function deactivate-current-i
                     (setq my-each-frame (lambda (frames)
                                           (when frames
                                             (let ((theframe (car frames)))
-                                              (if (frame-parameter theframe (intern "w32-imeadv-cursor-color"))
-                                                  (modify-frame-parameters theframe (list (cons 'cursor-color (frame-parameter theframe (intern "w32-imeadv-cursor-color")))
-                                                                                          (cons (intern "w32-imeadv-cursor-color") nil)))
+                                              (if (frame-parameter theframe 'w32-imeadv-cursor-color)
+                                                  (modify-frame-parameters theframe (list (cons 'cursor-color (frame-parameter theframe 'w32-imeadv-cursor-color))
+                                                                                          (cons 'w32-imeadv-cursor-color nil)))
                                                 (set-frame-parameter theframe 'cursor-color (or w32-imeadv-ime-closestatus-indicate-cursor-color
                                                                                                 (frame-parameter theframe 'foreground-color))))
                                               (funcall my-each-frame (cdr frames))))))
                     (funcall my-each-frame (frame-list)))))))
 
   ;; 最後にdefault-input-method を W32-IMEADV にする。(これ重要)
+  (defvar default-input-method) ; mule-cmd.el ;; for elint
   (setq-default default-input-method "W32-IMEADV"))
