@@ -90,15 +90,13 @@ w32-imeadv--notify-composition-font が nil を返すと、UIスレッドの待�
 通常は無視される動作になるが、別の理由（再変換領域の調査など）でUIスレッドが待機している状態にフォントを通知するタイミングが重なると、
 これもまたUIスレッドが待機状態になってタイムアウトを待つ状態になる。（おおよそ3回リトライして、そのインターバルは1秒なので計4秒 大体5秒ぐらい）
 よってこの関数は、正確に(w32-imeadv-advertise-ime-composition-font-internal font-attributes)の戻り値を返すことを要求する"
-      (interactive)
-      ;; フォントの調整をする機会をユーザーに与える
       (let ( (font-attributes
               (if (and (boundp 'w32-imeadv-ime-composition-font-attributes)
                        (not (null w32-imeadv-ime-composition-font-attributes )))
                   w32-imeadv-ime-composition-font-attributes
                 (font-face-attributes (face-font 'default nil (or w32-imeadv-ime-composition-font-investigate-char
                                                                   ?あ)))))) ; ?あ or (char-before)
-        (run-hooks 'w32-imeadv-composition-font-hook)
+        (run-hooks 'w32-imeadv-composition-font-hook) ; フォントの調整をする機会をユーザーに与える
         (w32-imeadv-advertise-ime-composition-font-internal font-attributes )))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -330,5 +328,4 @@ current-input-method describe-current-input-method-function deactivate-current-i
                     (funcall my-each-frame (frame-list)))))))
 
   ;; 最後にdefault-input-method を W32-IMEADV にする。(これ重要)
-  (defvar default-input-method) ; mule-cmd.el ;; for elint
   (setq-default default-input-method "W32-IMEADV"))
