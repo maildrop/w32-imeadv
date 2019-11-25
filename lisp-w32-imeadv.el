@@ -11,6 +11,8 @@
   :group 'i18n
   :group 'w32)
 
+(defvar default-input-method ) ; mule-cmds.el ; for elint
+
 (when (and (eq system-type 'windows-nt)   ; Windows NT 上で
            window-system                  ; Window システムがあって
            (locate-library "w32-imeadv")) ; w32-imeadvが存在していれば、
@@ -176,7 +178,7 @@ current-input-method describe-current-input-method-function deactivate-current-i
 すべてのバッファの変数をそれぞれ設定しなおす。"
       (when (string= "W32-IMEADV" default-input-method)
         (let ( (openstatus (w32-imeadv-get-openstatus (string-to-number (frame-parameter (selected-frame) 'window-id))))
-	       (w32-imeadv-buffer-list-update-hook-foreach nil) )
+               (w32-imeadv-buffer-list-update-hook-foreach nil) )
           (setq w32-imeadv-buffer-list-update-hook-foreach (lambda (list)
                                                              (when list
                                                                (with-current-buffer (car list)
@@ -228,10 +230,12 @@ current-input-method describe-current-input-method-function deactivate-current-i
   :group 'w32
   :set (lambda (sym val)
          (set-default sym val)
-         (if (w32-imeadv-get-openstatus (string-to-number (frame-parameter (selected-frame) 'window-id)))
-             (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-open)
-           (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-close))
-         (force-mode-line-update t) ))
+         (when (fboundp 'w32-imeadv-get-openstatus)
+           (if (w32-imeadv-get-openstatus (string-to-number (frame-parameter (selected-frame) 'window-id)))
+               (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-open)
+             (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-close))
+           (force-mode-line-update t) )))
+
 
 (defcustom w32-imeadv-ime-status-line-indicate-open "[あ]"
   "ステータスラインに表示するIMEのon/off表示の on の状態 デフォルトは [あ]"
@@ -241,10 +245,11 @@ current-input-method describe-current-input-method-function deactivate-current-i
   :group 'w32
   :set (lambda (sym val)
          (set-default sym val)
-         (if (w32-imeadv-get-openstatus (string-to-number (frame-parameter (selected-frame) 'window-id)))
-             (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-open)
-           (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-close))
-         (force-mode-line-update t) ))
+         (when (fboundp 'w32-imeadv-get-openstatus)
+           (if (w32-imeadv-get-openstatus (string-to-number (frame-parameter (selected-frame) 'window-id)))
+               (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-open)
+             (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-close))
+           (force-mode-line-update t) )))
 
 (defcustom w32-imeadv-ime-openstatus-indicate-cursor-color-enable nil
   "IMEがonの時にカーソルの色を変える (非nilの時は色を変える nilの時は色を変えない）デフォルトは nil"
