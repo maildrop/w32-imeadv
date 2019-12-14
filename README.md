@@ -96,10 +96,13 @@ IME を一時的に off にするというのが正しい挙動になると思�
 	-「正しい処理」とは別に、SendMessageで送られてきたメッセージの回数を数え上げるところで、最初のSendMessageのブロック中にSendMessage が戻される場合があり、回数を正しく数えていなかった。
 
 ## Dynamic Module では実現不可能な内容
-- Lispスレッドのコモンダイアログを開くコードが、 UI ウィンドウを親として開くために一時的にデットロックする問題（GNUEmacsBug11732)
+- Lispスレッドのコモンダイアログを開くコードが、 UI ウィンドウを親として開くために一時的にロック（本来はデットドック）後タイムアウトをまでブロックする問題（GNUEmacsBug11732)
+
+本件については、参考情報として、https://github.com/maildrop/GNUEmacsBug11732 があります。 Dynamic Module では、解決することが難しそうです。
+
 - 右下通知領域の IME アイコン の制御は、WM_TIMERのスレッドメッセージ( HWND == nullのメッセージのこと ) が処理しているので、これを修正するためにはメッセージポンプ の スレッドメッセージを Dispatch しない とする部分の修正が必要 （実はメッセージフックで解決可能の道が開かれた？ 要調査）
 
-本件については、 https://github.com/maildrop/w32-imm32-on-start-enabler で動作させています。
+本件については、 https://github.com/maildrop/w32-imm32-on-start-enabler の Dynamic Module で軽減できそうです。
 
 ## 感想
 Mircrosoft Windows のフック関数の有能さに救われている。
