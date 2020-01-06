@@ -11,6 +11,13 @@
   :group 'i18n
   :group 'w32)
 
+(defcustom w32-imeadv-separate-buffer-state nil
+  "IMEの有効/無効をバッファ毎に設定する 実装中"
+  :type 'boolean
+  :group 'mule
+  :group 'i18n
+  :group 'w32)
+
 (defvar default-input-method ) ; mule-cmds.el ; for elint
 
 (when (and (eq system-type 'windows-nt)   ; Windows NT 上で
@@ -151,7 +158,11 @@ current-input-method describe-current-input-method-function deactivate-current-i
     ;; IME が on になったときに呼ばれるフック関数
     (add-hook 'w32-imeadv-ime-on-hook
               (lambda ()
-                (w32-imeadv-on-hook-foreach-buffer-function (buffer-list))
+                (if w32-imeadv-separate-buffer-state
+                    (progn (setq current-input-method "W32-IMEADV")
+                           (setq describe-current-input-method-function 'w32-imeadv-state-switch)
+                           (setq deactivate-current-input-method-function 'w32-imeadv-state-switch))
+                  (w32-imeadv-on-hook-foreach-buffer-function (buffer-list)))
                 (unless w32-imeadv--programmatic-status-change
                   (unwind-protect (run-hooks 'input-method-activate-hook)))
                 (setq w32-imeadv--programmatic-status-change nil)))
@@ -170,39 +181,58 @@ current-input-method describe-current-input-method-function deactivate-current-i
             (setq deactivate-current-input-method-function nil) ))
         (w32-imeadv-off-hook-foreach-buffer-function (cdr list))))
 
-    (defun w32-imeadv-buffer-list-update-hook ()
-      "バッファのリストが更新されたときに全てのバッファに対して、IMEの状態を更新するフック
-
-current-input-method describe-current-input-method-function deactivate-current-input-method-function
-の各変数は、バッファローカルな変数で、それぞれバッファ事に、InputMethodを切り替えることができるようになっているが、WindowsのIMEは、グローバルに作用するので
-すべてのバッファの変数をそれぞれ設定しなおす。"
-      (when (string= "W32-IMEADV" default-input-method)
-        (let ( (openstatus (w32-imeadv-get-openstatus (string-to-number (frame-parameter (selected-frame) 'window-id))))
-               (w32-imeadv-buffer-list-update-hook-foreach nil) )
-          (setq w32-imeadv-buffer-list-update-hook-foreach (lambda (list)
-                                                             (when list
-                                                               (with-current-buffer (car list)
-                                                                 (if openstatus
-                                                                     (progn
-                                                                       (setq current-input-method "W32-IMEADV")
-                                                                       (setq describe-current-input-method-function 'w32-imeadv-state-switch)
-                                                                       (setq deactivate-current-input-method-function 'w32-imeadv-state-switch))
-                                                                   (progn
-                                                                     (setq current-input-method nil)
-                                                                     (setq describe-current-input-method-function nil)
-                                                                     (setq deactivate-current-input-method-function nil))))
-                                                               (funcall w32-imeadv-buffer-list-update-hook-foreach (cdr list)))))
-          (funcall w32-imeadv-buffer-list-update-hook-foreach (buffer-list)))))
-
-    (add-hook 'buffer-list-update-hook 'w32-imeadv-buffer-list-update-hook)
-
     ;; IME が off になったときに呼ばれるフック関数
     (add-hook 'w32-imeadv-ime-off-hook
               (lambda ()
                 (unless w32-imeadv--programmatic-status-change
                   (run-hooks 'input-method-deactivate-hook))
                 (setq w32-imeadv--programmatic-status-change nil)
-                (w32-imeadv-off-hook-foreach-buffer-function (buffer-list))))
+                (if w32-imeadv-separate-buffer-state
+                    (progn (setq current-input-method nil)
+                           (setq describe-current-input-method-function nil)
+                           (setq deactivate-current-input-method-function nil) )
+                  (w32-imeadv-off-hook-foreach-buffer-function (buffer-list)))))
+
+    (defvar w32-imeadv-buffer--last-buffer nil
+      "バッファ毎にIMEの状態を覚えておく方法をとったときの、最後のバッファ")
+    (defun w32-imeadv-buffer-switch-hook ()
+      "post-command-hookを使って、バッファが切り替わったときに、バッファの状態にIMEの状態を同期させる。"
+      (unless (eq (current-buffer)
+                  w32-imeadv-buffer--last-buffer)
+        (when w32-imeadv-separate-buffer-state
+          (if (string= current-input-method "W32-IMEADV")
+              (w32-imeadv-set-openstatus-open (string-to-number (frame-parameter (selected-frame) 'window-id)))
+            (w32-imeadv-set-openstatus-close (string-to-number (frame-parameter (selected-frame) 'window-id)))))
+        (setq w32-imeadv-buffer--last-buffer (current-buffer))))
+
+    (add-hook 'post-command-hook 'w32-imeadv-buffer-switch-hook)
+
+    (defun w32-imeadv-buffer-list-update-hook ()
+      "バッファのリストが更新されたときに全てのバッファに対して、IMEの状態を更新するフック
+
+current-input-method describe-current-input-method-function deactivate-current-input-method-function
+の各変数は、バッファローカルな変数で、それぞれバッファ事に、InputMethodを切り替えることができるようになっているが、WindowsのIMEは、グローバルに作用するので
+すべてのバッファの変数をそれぞれ設定しなおす。"
+      (unless w32-imeadv-separate-buffer-state
+        (when (string= "W32-IMEADV" default-input-method)
+          (let ( (openstatus (w32-imeadv-get-openstatus (string-to-number (frame-parameter (selected-frame) 'window-id))))
+	         (w32-imeadv-buffer-list-update-hook-foreach nil) )
+            (setq w32-imeadv-buffer-list-update-hook-foreach
+                  (lambda (list)
+                    (when list
+                      (with-current-buffer (car list)
+                        (if openstatus
+                            (progn
+                              (setq current-input-method "W32-IMEADV")
+                              (setq describe-current-input-method-function 'w32-imeadv-state-switch)
+                              (setq deactivate-current-input-method-function 'w32-imeadv-state-switch))
+                          (progn
+                            (setq current-input-method nil)
+                            (setq describe-current-input-method-function nil)
+                            (setq deactivate-current-input-method-function nil))))
+                      (funcall w32-imeadv-buffer-list-update-hook-foreach (cdr list)))))
+            (funcall w32-imeadv-buffer-list-update-hook-foreach (buffer-list))))))
+    (add-hook 'buffer-list-update-hook 'w32-imeadv-buffer-list-update-hook)
 
     )) ;; end of initialize w32-imeadv
 
@@ -230,11 +260,10 @@ current-input-method describe-current-input-method-function deactivate-current-i
   :group 'w32
   :set (lambda (sym val)
          (set-default sym val)
-         (when (fboundp 'w32-imeadv-get-openstatus)
-           (if (w32-imeadv-get-openstatus (string-to-number (frame-parameter (selected-frame) 'window-id)))
-               (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-open)
-             (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-close))
-           (force-mode-line-update t) )))
+         (if (string= "W32-IMEADV" current-input-method)
+             (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-open)
+           (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-close))
+         (force-mode-line-update t)))
 
 
 (defcustom w32-imeadv-ime-status-line-indicate-open "[あ]"
@@ -245,11 +274,10 @@ current-input-method describe-current-input-method-function deactivate-current-i
   :group 'w32
   :set (lambda (sym val)
          (set-default sym val)
-         (when (fboundp 'w32-imeadv-get-openstatus)
-           (if (w32-imeadv-get-openstatus (string-to-number (frame-parameter (selected-frame) 'window-id)))
-               (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-open)
-             (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-close))
-           (force-mode-line-update t) )))
+         (if (string= "W32-IMEADV" current-input-method)
+             (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-open)
+           (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-close))
+         (force-mode-line-update t)))
 
 (defcustom w32-imeadv-ime-openstatus-indicate-cursor-color-enable nil
   "IMEがonの時にカーソルの色を変える (非nilの時は色を変える nilの時は色を変えない）デフォルトは nil"
@@ -267,45 +295,57 @@ current-input-method describe-current-input-method-function deactivate-current-i
 (defvar w32-imeadv-ime-closestatus-indicate-cursor-color nil
   "IMEがoffになった時にフレームのカーソルカラーが戻せなくなった時に戻す色")
 
+(defvar-local w32-imeadv-status-line ""
+  "現在のステータスラインに表示するIMEの状態文字列")
+
+(defun w32-imeadv-status-line-show ()
+  "Get a string to be displayed on the mode-line."
+  (if w32-imeadv-ime-status-line-indicate-openstatus-enable
+      (with-current-buffer (current-buffer)
+        (format "%s" w32-imeadv-status-line ))
+    ""))
+
+;; IMEが有効になっているときに、カーソルのカラーを変える機能
 (when (and (eq system-type 'windows-nt)   ; Windows NT 上で
            window-system                  ; Window システムがあって
            (locate-library "w32-imeadv")) ; w32-imeadvが存在していれば、
+  (setq-default mode-line-format (cons '(:eval (w32-imeadv-status-line-show)) mode-line-format))
 
-  (let ((w32-imeadv-status-line "")) ;現在のステータスラインに表示するIME文字列 外に出す必要は無いのでlexcal bindingする
-    (defun w32-imeadv-status-line-show ()
-      "Get a string to be displayed on the mode-line."
-      (if w32-imeadv-ime-status-line-indicate-openstatus-enable
-          (format " %s" w32-imeadv-status-line )
-        ""))
-    (setq-default mode-line-format (cons '(:eval (w32-imeadv-status-line-show)) mode-line-format))
+  ;; IME が on になったときに呼ばれるフック関数
+  (add-hook 'w32-imeadv-ime-on-hook
+            (lambda ()
+              (if w32-imeadv-separate-buffer-state
+                  (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-open)
+                (dolist (the-buffer (buffer-list))
+                  (with-current-buffer the-buffer
+                    (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-open))))
+              (force-mode-line-update t)))
 
-    ;; IME が on になったときに呼ばれるフック関数
-    (add-hook 'w32-imeadv-ime-on-hook
-              (lambda ()
-                (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-open)
-                (force-mode-line-update t)) )
+  ;; IME が off になったときに呼ばれるフック関数
+  (add-hook 'w32-imeadv-ime-off-hook
+            (lambda ()
+              (if w32-imeadv-separate-buffer-state
+                  (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-close)
+                (dolist (the-buffer (buffer-list))
+                  (with-current-buffer the-buffer
+                    (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-close))))
+              (force-mode-line-update t)))
 
-    ;; IME が off になったときに呼ばれるフック関数
-    (add-hook 'w32-imeadv-ime-off-hook
-              (lambda ()
-                (setq w32-imeadv-status-line w32-imeadv-ime-status-line-indicate-close)
-                (force-mode-line-update t) ) )
+  ;; isearch modeに入る時に IME をオフにする
+  (add-hook 'isearch-mode-hook 'deactivate-input-method )
 
-    ;; isearch modeに入る時に IME をオフにする
-    (add-hook 'isearch-mode-hook 'deactivate-input-method )
+  ;; ミニバッファ setup hook で、IME をオフにする
+  (add-hook 'minibuffer-setup-hook (lambda ()
+                                     (if (minibufferp)
+                                         (with-selected-window (minibuffer-selected-window)
+                                           (deactivate-input-method) )
+                                       (deactivate-input-method))))
 
-    ;; ミニバッファ setup hook で、IME をオフにする
-    (add-hook 'minibuffer-setup-hook (lambda ()
-                                       (if (minibufferp)
-                                           (with-selected-window (minibuffer-selected-window)
-                                             (deactivate-input-method) )
-                                         (deactivate-input-method))))
-
-    (add-hook 'input-method-activate-hook
-              (lambda ()
-                (when w32-imeadv-ime-openstatus-indicate-cursor-color-enable
-                  (let ( (color-name w32-imeadv-ime-openstatus-indicate-cursor-color )
-                         my-each-frame)
+  (add-hook 'input-method-activate-hook
+            (lambda ()
+              (when w32-imeadv-ime-openstatus-indicate-cursor-color-enable
+                (let ( (color-name w32-imeadv-ime-openstatus-indicate-cursor-color )
+                       my-each-frame)
                     (setq my-each-frame (lambda (frames)
                                           (when frames
                                             (let ((mod-list (list (cons 'cursor-color color-name)))
@@ -317,20 +357,21 @@ current-input-method describe-current-input-method-function deactivate-current-i
                                             (funcall my-each-frame (cdr frames)))))
                     (funcall my-each-frame (frame-list))))))
 
-    (add-hook 'input-method-deactivate-hook
-              (lambda ()
-                (when w32-imeadv-ime-openstatus-indicate-cursor-color-enable
-                  (let ( my-each-frame )
-                    (setq my-each-frame (lambda (frames)
-                                          (when frames
-                                            (let ((theframe (car frames)))
-                                              (if (frame-parameter theframe 'w32-imeadv-cursor-color)
-                                                  (modify-frame-parameters theframe (list (cons 'cursor-color (frame-parameter theframe 'w32-imeadv-cursor-color))
-                                                                                          (cons 'w32-imeadv-cursor-color nil)))
-                                                (set-frame-parameter theframe 'cursor-color (or w32-imeadv-ime-closestatus-indicate-cursor-color
-                                                                                                (frame-parameter theframe 'foreground-color))))
-                                              (funcall my-each-frame (cdr frames))))))
-                    (funcall my-each-frame (frame-list)))))))
+  (add-hook 'input-method-deactivate-hook
+            (lambda ()
+              (when w32-imeadv-ime-openstatus-indicate-cursor-color-enable
+                (let ( my-each-frame )
+                  (setq my-each-frame (lambda (frames)
+                                        (when frames
+                                          (let ((theframe (car frames)))
+                                            (if (frame-parameter theframe 'w32-imeadv-cursor-color)
+                                                (modify-frame-parameters theframe (list (cons 'cursor-color (frame-parameter theframe 'w32-imeadv-cursor-color))
+                                                                                        (cons 'w32-imeadv-cursor-color nil)))
+                                              (set-frame-parameter theframe 'cursor-color (or w32-imeadv-ime-closestatus-indicate-cursor-color
+                                                                                              (frame-parameter theframe 'foreground-color))))
+                                            (funcall my-each-frame (cdr frames))))))
+                  (funcall my-each-frame (frame-list)))))))
 
-  ;; 最後にdefault-input-method を W32-IMEADV にする。(これ重要)
-  (setq-default default-input-method "W32-IMEADV"))
+;; 最後にdefault-input-method を W32-IMEADV にする。(これ重要)
+(setq-default default-input-method "W32-IMEADV")
+
