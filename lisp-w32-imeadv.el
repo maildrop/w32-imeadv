@@ -12,7 +12,7 @@
   :group 'w32)
 
 (defcustom w32-imeadv-separate-buffer-state nil
-  "IMEの有効/無効をバッファ毎に設定する 実装中"
+  "IMEの有効/無効をバッファ毎に設定する 実験中(experimental)"
   :type 'boolean
   :group 'mule
   :group 'i18n
@@ -335,11 +335,19 @@ current-input-method describe-current-input-method-function deactivate-current-i
   (add-hook 'isearch-mode-hook 'deactivate-input-method )
 
   ;; ミニバッファ setup hook で、IME をオフにする
-  (add-hook 'minibuffer-setup-hook (lambda ()
-                                     (if (minibufferp)
-                                         (with-selected-window (minibuffer-selected-window)
-                                           (deactivate-input-method) )
-                                       (deactivate-input-method))))
+  (add-hook 'minibuffer-setup-hook
+            (lambda ()
+              (if (minibufferp) ;; minibuffer なら 直接IMEをoffに変更する元のバッファの current-input-method は、 "W32-IMEADV"のまま
+                  (w32-imeadv-set-openstatus-close (string-to-number (frame-parameter (selected-frame) 'window-id)))
+                (deactivate-input-method))))
+
+  (add-hook 'minibuffer-exit-hook
+            (lambda ()
+              (when (minibufferp) ;; 元のバッファの current-input-method は保持されているので、戻す
+                (with-current-buffer (window-buffer (minibuffer-selected-window))
+                  (if (string= current-input-method "W32-IMEADV")
+                      (w32-imeadv-set-openstatus-open (string-to-number (frame-parameter (selected-frame) 'window-id)))
+                    (w32-imeadv-set-openstatus-close (string-to-number (frame-parameter (selected-frame) 'window-id))))))))
 
   (add-hook 'input-method-activate-hook
             (lambda ()
