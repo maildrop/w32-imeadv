@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cassert>
+#include <cmath>
 
 #include "w32-imeadv.h"
 
@@ -236,10 +237,7 @@ w32_imeadv_wm_ime_startcomposition_emacs27( HWND hWnd , WPARAM wParam , LPARAM l
   /* 
      26.2 以降はのEmacs は、DefWindowProc を呼び出すように変更されたので、 DefSubclassProc() を呼び出すのみでよくなった
   */
-  LRESULT const result = ::DefSubclassProc( hWnd , WM_IME_STARTCOMPOSITION , wParam , lParam );
-  if( ignore_wm_ime_start_composition ){
-    return result;
-  }
+  const LRESULT result = ::DefSubclassProc( hWnd , WM_IME_STARTCOMPOSITION , wParam , lParam );
   ignore_wm_ime_start_composition = 1;
   return result;
 }
@@ -785,58 +783,6 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
   UNREFERENCED_PARAMETER( dwRefData );
   if( WM_DESTROY == uMsg )
     SendMessageW( hWnd, WM_W32_IMEADV_UNSUBCLASSIFY , 0 , 0 ); // 自分自身に送る
-
-#if 1
-  /* 
-     確定undo の動作を修正する。
-     ATOK で Ctrl+Backspace を押したときに 素早く Ctrl キーを離すと、素直な動作( MS-IME と同じ ）
-     Ctrl キーを離さないと Google 日本語入力と同じ動作をする
-  */
-  if( WM_KEYDOWN == uMsg || WM_KEYUP == uMsg ){
-    if( VK_BACK == wParam ){
-      /*
-        if( uMsg == WM_KEYDOWN ){
-        OutputDebugStringA("WM_KEYDOWN : VK_BACK + VK_CONTROL\n");
-        }else if( uMsg == WM_KEYUP ){
-        OutputDebugStringA("WM_KEYUP   : VK_BACK + VK_CONTROL\n");
-        }
-      */
-      if( GetAsyncKeyState( VK_CONTROL ) ){
-        bool isOpenImm = false;
-        {
-          HIMC hImc = ImmGetContext( hWnd );
-          if( hImc ){
-            isOpenImm = ImmGetOpenStatus( hImc ) ? true : false ;
-            VERIFY( ImmReleaseContext( hWnd,hImc ) );
-          }
-        }
-        if( isOpenImm ){
-          if( WM_KEYDOWN == uMsg ){
-            HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
-            if( communication_window_handle ){
-              
-              w32_imeadv_request_backward_char_lparam backward_char = { hWnd, 1 };
-              my_wait_message<WM_W32_IMEADV_NOTIFY_BACKWARD_CHAR>( hWnd , [&]()->DWORD{
-                return static_cast<int>(SendMessage( communication_window_handle ,
-                                                     WM_W32_IMEADV_REQUEST_BACKWARD_CHAR ,
-                                                     reinterpret_cast<WPARAM>( hWnd ),
-                                                     reinterpret_cast<LPARAM>( &backward_char )));
-              } );
-              w32_imeadv_request_delete_char_lparam delete_char = { hWnd , 1 };
-              my_wait_message<WM_W32_IMEADV_NOTIFY_DELETE_CHAR>( hWnd , [&]()->int{
-                return static_cast<int>(SendMessage( communication_window_handle ,
-                                                     WM_W32_IMEADV_REQUEST_DELETE_CHAR ,
-                                                     reinterpret_cast<WPARAM>( hWnd ),
-                                                     reinterpret_cast<LPARAM>( &delete_char )));
-              });
-              return 0;
-            }
-          }
-        }
-      }
-    }
-  }
-#endif
   
   switch( uMsg ){
   case WM_KEYDOWN:
@@ -890,6 +836,8 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
                 break;
                 /* w32fns.c の WM_IME_STARTCOMPOSITION で DefWindowProc を呼び出さない問題は、 26.1 と 26.2 の間で修正された。 */
                 /* このため 26.1 の時のみ 動作を変える (26.0は、開発バージョンなので普通使われない はず）*/
+              case 2:
+              case 3:
               default:
                 emacs_is_broken_ime_startcomposition = false;
                 break;
@@ -936,23 +884,25 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
   case WM_W32_IMEADV_NOTIFY_COMPOSITION_FONT:
     {
       if( lParam ){
-        w32_imeadv_composition_font_configure* font_configure =
-          reinterpret_cast<w32_imeadv_composition_font_configure*>( lParam );
+        const w32_imeadv_composition_font_configure* font_configure =
+          reinterpret_cast<const w32_imeadv_composition_font_configure*>( lParam );
         if( font_configure->enable_bits ){
           HIMC hImc = ImmGetContext( hWnd );
           if( hImc ){
             LOGFONTW logFont = {0};
             if( ImmGetCompositionFontW( hImc , &logFont ) ){
               if( font_configure->enable_bits & W32_IMEADV_FONT_CONFIGURE_BIT_FACENAME ){
+                static_assert( sizeof( logFont.lfFaceName ) == sizeof( font_configure->lfFaceName ),
+                               "sizeof( logFont.lfFaceName ) == sizeof( font_configure->lfFaceName )" );
                 std::copy( std::begin( font_configure->lfFaceName ) , std::end( font_configure->lfFaceName ) ,
                            &(logFont.lfFaceName[0]) );
               }
               if( font_configure->enable_bits & W32_IMEADV_FONT_CONFIGURE_BIT_FONTHEIGHT ){
-                const double point_size = static_cast<double>(font_configure->font_height) / 10.0f ;
-                logFont.lfHeight =
-                  static_cast<LONG>(-(point_size *
-                                      ( double( GetDeviceCaps( GetDC(NULL), LOGPIXELSY) ) / double( 72.0f ) )));
+                logFont.lfHeight =  
+                  - std::abs( static_cast<LONG>( (double(font_configure->font_height) / double(10.0f)) *
+                                                 (double(GetDeviceCaps(GetDC(NULL),LOGPIXELSY)) / double( 72.0f ) )));
                 logFont.lfWidth = 0;
+                assert( logFont.lfHeight < 0 || !"lfHeight must be negative integer.");
               }
               ImmSetCompositionFontW( hImc, &logFont );
             }
