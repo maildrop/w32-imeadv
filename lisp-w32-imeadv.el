@@ -151,6 +151,7 @@ current-input-method describe-current-input-method-function deactivate-current-i
         (let ((buffer (car list)))
           (with-current-buffer buffer
             (setq current-input-method "W32-IMEADV")
+            (setq current-input-method-title  "W32-IMEADV")
             (setq describe-current-input-method-function 'w32-imeadv-state-switch)
             (setq deactivate-current-input-method-function 'w32-imeadv-state-switch) ))
         (w32-imeadv-on-hook-foreach-buffer-function (cdr list))))
@@ -160,6 +161,7 @@ current-input-method describe-current-input-method-function deactivate-current-i
               (lambda ()
                 (if w32-imeadv-separate-buffer-state
                     (progn (setq current-input-method "W32-IMEADV")
+                           (setq current-input-method-title  "W32-IMEADV")
                            (setq describe-current-input-method-function 'w32-imeadv-state-switch)
                            (setq deactivate-current-input-method-function 'w32-imeadv-state-switch))
                   (w32-imeadv-on-hook-foreach-buffer-function (buffer-list)))
@@ -177,6 +179,7 @@ current-input-method describe-current-input-method-function deactivate-current-i
         (let ((buffer (car list)))
           (with-current-buffer buffer
             (setq current-input-method nil)
+            (setq current-input-method-title nil)
             (setq describe-current-input-method-function nil)
             (setq deactivate-current-input-method-function nil) ))
         (w32-imeadv-off-hook-foreach-buffer-function (cdr list))))
@@ -189,6 +192,7 @@ current-input-method describe-current-input-method-function deactivate-current-i
                 (setq w32-imeadv--programmatic-status-change nil)
                 (if w32-imeadv-separate-buffer-state
                     (progn (setq current-input-method nil)
+                           (setq current-input-method-title nil)
                            (setq describe-current-input-method-function nil)
                            (setq deactivate-current-input-method-function nil) )
                   (w32-imeadv-off-hook-foreach-buffer-function (buffer-list)))))
@@ -224,10 +228,12 @@ current-input-method describe-current-input-method-function deactivate-current-i
                         (if openstatus
                             (progn
                               (setq current-input-method "W32-IMEADV")
+                              (setq current-input-method-title "W32-IMEADV")
                               (setq describe-current-input-method-function 'w32-imeadv-state-switch)
                               (setq deactivate-current-input-method-function 'w32-imeadv-state-switch))
                           (progn
                             (setq current-input-method nil)
+                            (setq current-input-method-title nil)
                             (setq describe-current-input-method-function nil)
                             (setq deactivate-current-input-method-function nil))))
                       (funcall w32-imeadv-buffer-list-update-hook-foreach (cdr list)))))
