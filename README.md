@@ -1,7 +1,8 @@
 # w32-imeadv (experimental implementation : 実験的実装)
 
 IMM32 dynamic module for Emacs on Windows
-これまで、EmacsでIMM32（とIME）を実用的に使用するためには複雑なパッチを当てる必要があったが、
+
+これまで、EmacsでIMM32（とIME）を実用的に使用するためには複雑なパッチを当てる作業を行っていたが、
 この作業は煩雑で注意が必要な作業であった。
 
 このパッチ当ての作業を簡素化するために、Dynamic Module を利用したコードを書き下ろすことにした。
@@ -9,24 +10,54 @@ IMM32 dynamic module for Emacs on Windows
 このダイナミックモジュールは、26.1 で作られ 現在 28.0.50(開発版、素の GNU Emacs 版パッチ無し）でテストしている最中である。
 特にダイナミックモジュール導入後の25系は、emacs-module.h を入れ替えればよいのであるが、していない。
 そちらは既にIMEパッチの当たったNTEmacs64等があるので、検討を願いたい。
+
 また、ダイナミックモジュールによる同様の試みとして [tr-emacs-ime-module](https://github.com/trueroad/tr-emacs-ime-module)があります。
 そちらは、w32-ime.elをほとんどそのまま使える上に、バイナリのリリースもあります！
 
-
 # 使い方
- Dynamic moduleを使っているので、  --with-modules をつけてコンパイルした Emacs が必要になります。
+ Dynamic moduleを使っているので、  --with-modules をつけてコンパイルした Emacs を用意する。
+ 
+ [w32-imm32-on-start-enabler](https://github.com/maildrop/w32-imm32-on-start-enabler) を入れる。
 
- 本モジュールをビルドして作ったファイル 
-- w32-adv.dll
- 注意： static link に変更されています。
+ 本プロジェクトををビルドして作ったファイル 
+- w32-imeadv.dll
 
- これは $(PREFIX)/share/emacs/26.1/site-lisp に配置 これが dynamic module 本体になります
+ を、これは $(PREFIX)/share/emacs/26.1/site-lisp に配置 これが dynamic module 本体になります
 
- あとは、追加のサンプルに、lisp-w32-imeadv.el がありますので、どうにかする。
+ あとは、追加のサンプルに、lisp-w32-imeadv.el があるのでどうにかする。
 
 ## カスタマイズ
 ![カスタマイズ](image/w32-imeadv-customize.png "カスタマイズ")
+
 M-x customize でいくつかのカスタマイズ項目が設定出来ます。IMEがonの時にカーソルの色を変えたりステータスラインの表示をon/offしたりできます。
+
+### インジケータ
+ ステータスラインに、IMEの状態を表示するかどうかが選べます 
+ on の場合は `[あ]` off の場合は`[　]` が表示されます。
+
+### フォント
+
+恐らく弄る必要はありません。自然な感じでフィットすると思います。
+
+w32-imeadv は現在のカーソルがポイントしているfaces でひらがなの「あ」を描画する時に使うフォントを自動で選択します。これにより、描画される文字サイズが変更になっても追従します。
+このときにひらがな以外を基準に使いたい場合は W32 Imeadv Ime Composition Font Investigate Charに指定して下さい。（多分要らない）
+
+IMEが使用するフォントを指定したい場合 w32-imeadv-ime-composition-font-attributesが 非nilならばそれをそのまま使おうとします。
+
+w32-imeadv-ime-composition-font-attributes が nil の場合は カーソルの場所のfacesを取得し、そのfacesのフォントを選択し、
+font-attributes に設定します。
+
+そしてフォントの選択が終わった後に フック関数 w32-imeadv-composition-font-hook が呼ばれます。
+font-attributes を変更したい時には、このフック関数で変更することが出来ます。
+
+(w32-imeは IMEが使用するフォントを frame parameters の ime-font に指定してました。これが w32-imeadv-composition-font-attributeに相当します。)
+
+w32-imeadv--notify-composition-font がコンポジションフォントを選択する関数です。
+
+## 操作及びフック
+w32-imeadv は mule-cmd.el をベースにしています。
+
+このために、 関数activate-input-method で IMEが on になり フック関数input-method-activate-hook が呼ばれます。
 
 # 目標
 
@@ -41,17 +72,23 @@ M-x customize でいくつかのカスタマイズ項目が設定出来ます。
 - まだ、abort の可能性があります。
 
 - まだ、デットロックの可能性が排除しきれていない。(多分大丈夫になりました）
-	再変換時にフリーズする場合があったが、これは SendMessage() のメッセージ伝播がうまくなかったことが原因のうちの一つだったので、修正されました。ただし、全ての可能性が排除できたわけでは無いので、まだ不安であります。
+
+再変換時にフリーズする場合があったが、これは SendMessage() のメッセージ伝播がうまくなかったことが原因のうちの一つだったので、修正されました。ただし、全ての可能性が排除できたわけでは無いので、まだ不安であります。
+
 - デットロック解除用に 5sec 閾値のタイムアウトを設定しているので、画面がフリーズしたと思ったら、IME制御の状態がおかしくなっているとご理解ください。その場合、できるだけ早くセーブ終了をして作業結果の保全をお願いします。
 
 - 現在 ad-hoc な方法で Ctrl-x 押下時に、IME を offにしています。「正しい方法」を知りたい
- 現在ウィンドウプロシージャ側で、 Ctrl-x 押下時に、IME を offにするコードが入っています。
- 本来は、input-sequence が入力途中の状態の時（ミニバッファに C-x とか表示されている時）から、pre-command-hook が実行される時まで
+
+現在ウィンドウプロシージャ側で、 Ctrl-x 押下時に、IME を offにするコードが入っています。
+
+本来は、input-sequence が入力途中の状態の時（ミニバッファに C-x とか表示されている時）から、pre-command-hook が実行される時まで
 IME を一時的に off にするというのが正しい挙動になると思います。 このinput-sequence が入力途中 というのを Lisp コードから判定するフックを求めています。
- この機能は現在切ることができません。
+
+この機能は現在切ることができません。
 
 - ATOK, Google-IME 等(MS-IME以外）での input method editor の確定アンドゥ(Ctrl-Backspace)の挙動がよろしくありません。
- ATOK,Google-IME等は、確定アンドゥの際に Ctrl-Backspace を削除する文字数分送ってきます。（MS-IMEはこの時にCtrlキーを解除してから、Backspaceを送ってきます。）Emacsは、このキーをワード単位のバックスペースに割り当てていますから、確定アンドゥで文字を消しすぎるという問題が起きます。
+
+ATOK,Google-IME等は、確定アンドゥの際に Ctrl-Backspace を削除する文字数分送ってきます。（MS-IMEはこの時にCtrlキーを解除してから、Backspaceを送ってきます。）Emacsは、このキーをワード単位のバックスペースに割り当てていますから、確定アンドゥで文字を消しすぎるという問題が起きます。
  なお、MS-IMEは、確定アンドゥができない場合には正しく Ctrl-Backspaceを送ってきますが、ATOKはCtrl-Backspaceで確定アンドゥに入ったまま、何も送ってきません。(つまりCtrl-Backspace でIME の status が open になるだけです）
  この挙動により、ATOK,Google-IME等を使用している際は、アプリケーションのショートカットキーとして、Ctrl-backspace を使用すること自体が困難なので、Emacs側でCtrl-backspaceのキーバインドを変更しておく方法が考えられます。
 
