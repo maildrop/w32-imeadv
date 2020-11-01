@@ -891,20 +891,30 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
           if( hImc ){
             LOGFONTW logFont = {0};
             if( ImmGetCompositionFontW( hImc , &logFont ) ){
+              bool dirtyBit = false; // フォントの設定が異なっていれば再設定する
               if( font_configure->enable_bits & W32_IMEADV_FONT_CONFIGURE_BIT_FACENAME ){
                 static_assert( sizeof( logFont.lfFaceName ) == sizeof( font_configure->lfFaceName ),
                                "sizeof( logFont.lfFaceName ) == sizeof( font_configure->lfFaceName )" );
-                std::copy( std::begin( font_configure->lfFaceName ) , std::end( font_configure->lfFaceName ) ,
-                           &(logFont.lfFaceName[0]) );
+                if( wcscmp( font_configure->lfFaceName , logFont.lfFaceName ) ){
+                  std::copy( std::begin( font_configure->lfFaceName ) , std::end( font_configure->lfFaceName ) ,
+                             &(logFont.lfFaceName[0]) );
+                  dirtyBit = true;
+                }
               }
               if( font_configure->enable_bits & W32_IMEADV_FONT_CONFIGURE_BIT_FONTHEIGHT ){
-                logFont.lfHeight =  
+                const auto value =
                   - std::abs( static_cast<LONG>( (double(font_configure->font_height) / double(10.0f)) *
                                                  (double(GetDeviceCaps(GetDC(NULL),LOGPIXELSY)) / double( 72.0f ) )));
+                if( value != logFont.lfHeight ){
+                  logFont.lfHeight = value;
+                  dirtyBit = true;
+                }
                 logFont.lfWidth = 0;
                 assert( logFont.lfHeight < 0 || !"lfHeight must be negative integer.");
               }
-              ImmSetCompositionFontW( hImc, &logFont );
+              if( dirtyBit ){
+                VERIFY( ImmSetCompositionFontW( hImc, &logFont ) );
+              }
             }
             VERIFY(ImmReleaseContext( hWnd, hImc ));
           }
