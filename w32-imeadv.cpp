@@ -540,9 +540,8 @@ Fw32_imeadv__notify_reconversion_string( emacs_env *env,
   emacs_value end = my_funcall( env , u8"line-end-position" );
 
   /* 確認用 */
-  auto first_half_num = env->extract_integer( env,my_funcall( env , u8"-" , pos , begin ) );
+  auto first_half_num = env->extract_integer( env, my_funcall( env, u8"-" , pos , begin ) );
   auto later_half_num = env->extract_integer( env, my_funcall( env, u8"-" , end , pos ) );
-
   
   emacs_value first_half = my_funcall( env , u8"buffer-substring-no-properties" ,
                                        begin , pos );
