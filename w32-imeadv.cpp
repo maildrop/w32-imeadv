@@ -126,21 +126,21 @@ std::wstring
 my_copy_string_contents( emacs_env_t env, emacs_value value )
 {
   ptrdiff_t size{0}; // contains null terminate character. 
-  if( env->copy_string_contents( env, value , NULL , &size ) ){
-    if( 0 < size ){
-      std::unique_ptr< char[] > buffer{ new (std::nothrow) char[size]{} };
-      if( static_cast<bool>( buffer ) ){
-        if( env->copy_string_contents( env , value , buffer.get() , &size ) ){
-          std::string const utf8_str = std::string( buffer.get() );
-          std::wstring result{};
-          if( filesystem_u8_to_wcs( utf8_str , result ) ){
-            return result;
-          }
-        }
-      }
-    }
-  }
-  return std::wstring{};
+                          if( env->copy_string_contents( env, value , NULL , &size ) ){
+                            if( 0 < size ){
+                              std::unique_ptr< char[] > buffer{ new (std::nothrow) char[size]{} };
+                              if( static_cast<bool>( buffer ) ){
+                                if( env->copy_string_contents( env , value , buffer.get() , &size ) ){
+                                  std::string const utf8_str = std::string( buffer.get() );
+                                  std::wstring result{};
+                                  if( filesystem_u8_to_wcs( utf8_str , result ) ){
+                                    return result;
+                                  }
+                                }
+                              }
+                            }
+                          }
+                          return std::wstring{};
 }
 
 template<typename emacs_env_t>
@@ -483,24 +483,24 @@ Fw32_imeadv_advertise_ime_composition_font( emacs_env *env,
     do{
       if( env->is_not_nil( env, value[0] ) ){
         w32_imeadv_composition_font_configure font_configure = {};
-        (void)(font_configure);
         emacs_value family = my_funcall( env , "plist-get" , value[0] , env->intern(env,":family") );
         if( env->is_not_nil( env, family ) ){
-          {
-            std::wstring font_family = my_copy_string_contents( env , family );
-            for( ptrdiff_t i = 0; i < LF_FACESIZE ; ++i ){
-              std::for_each( std::begin( font_family ), std::end( font_family ),
-                             [&]( const wchar_t &c ){
-                               if( (LF_FACESIZE-1) <= i  ) // The last one is terminate character.
-                                 return;
-                               font_configure.lfFaceName[i++] = c;
-                             });
-              for( ; i < LF_FACESIZE ; ++i ){
-                font_configure.lfFaceName[i] = L'\0'; // fill by terminate character
-              }
+          do{
+            const std::wstring font_family = my_copy_string_contents( env , family );
+            ptrdiff_t i = 0;
+            std::for_each( std::begin( font_family ), std::end( font_family ),
+                           [&]( const wchar_t &c ){
+                             if( (LF_FACESIZE-1) <= i  ) // The last one is terminate character.
+                               return;
+                             font_configure.lfFaceName[i++] = c;
+                           });
+            for( ; i < LF_FACESIZE ; ++i ){
+              font_configure.lfFaceName[i] = L'\0'; // fill by terminate character
             }
-            font_configure.enable_bits |= W32_IMEADV_FONT_CONFIGURE_BIT_FACENAME;
-          }
+            assert( i == LF_FACESIZE );
+          }while( false );
+
+          font_configure.enable_bits |= W32_IMEADV_FONT_CONFIGURE_BIT_FACENAME;
         }
 
         emacs_value height = my_funcall( env , "plist-get" , value[0] , env->intern(env,":height") );
@@ -535,20 +535,25 @@ Fw32_imeadv__notify_reconversion_string( emacs_env *env,
                                          ptrdiff_t nargs , emacs_value value[],
                                          void *data) EMACS_NOEXCEPT
 {
-  emacs_value pos = my_funcall( env , u8"point" );
+  emacs_value pos   = my_funcall( env , u8"point" );
   emacs_value begin = my_funcall( env , u8"line-beginning-position");
-  emacs_value end = my_funcall( env , u8"line-end-position" );
+  emacs_value end   = my_funcall( env , u8"line-end-position" );
 
   /* 確認用 */
-  auto first_half_num = env->extract_integer( env, my_funcall( env, u8"-" , pos , begin ) );
-  auto later_half_num = env->extract_integer( env, my_funcall( env, u8"-" , end , pos ) );
+  auto const first_half_num = env->extract_integer( env, my_funcall( env, u8"-" , pos , begin ) );
+  auto const later_half_num = env->extract_integer( env, my_funcall( env, u8"-" , end , pos ) );
   
-  emacs_value first_half = my_funcall( env , u8"buffer-substring-no-properties" ,
-                                       begin , pos );
-  emacs_value later_half = my_funcall( env , u8"buffer-substring-no-properties",
-                                       pos ,  end );
+  emacs_value first_half =
+    ((first_half_num)?
+     my_funcall( env , u8"buffer-substring-no-properties" ,begin , pos ) :
+     env->intern( env, u8"nil"));
+  emacs_value later_half =
+    (( later_half_num ) ?
+     my_funcall( env , u8"buffer-substring-no-properties", pos ,  end ) :
+     env->intern( env, u8"nil"));
+    
   std::wstring first_half_str =
-    ( env->is_not_nil( env,first_half ) ) ? my_copy_string_contents( env , first_half ) : std::wstring{};
+    ( env->is_not_nil( env, first_half )) ? my_copy_string_contents( env , first_half ) : std::wstring{};
   std::wstring later_half_str =
     ( env->is_not_nil( env, later_half )) ? my_copy_string_contents( env , later_half ) : std::wstring{};
 
@@ -605,12 +610,12 @@ static inline int emacs_module_init_impl( emacs_env_t* env ) noexcept
     std::unique_lock<decltype( w32_imeadv_runtime_environment.mutex )> lock( w32_imeadv_runtime_environment.mutex );
     
     { // major version 
-      emacs_value major_version_value =
-        my_funcall( env , u8"symbol-value" , env->intern( env, u8"emacs-major-version") );
-      if( env->is_not_nil( env , major_version_value ) ){
-        w32_imeadv_runtime_environment.emacs_major_version = 
-          env->extract_integer( env , major_version_value );
-      }
+        emacs_value major_version_value =
+          my_funcall( env , u8"symbol-value" , env->intern( env, u8"emacs-major-version") );
+        if( env->is_not_nil( env , major_version_value ) ){
+          w32_imeadv_runtime_environment.emacs_major_version = 
+            env->extract_integer( env , major_version_value );
+        }
     }
     { // minor version
       emacs_value minor_version_value =
