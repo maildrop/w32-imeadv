@@ -245,20 +245,24 @@ w32_imeadv_wm_ime_startcomposition_emacs27( HWND hWnd , WPARAM wParam , LPARAM l
 static LRESULT
 w32_imeadv_wm_ime_composition( HWND hWnd , WPARAM wParam , LPARAM lParam )
 {
-  do{ /* The request of IME Composition font setting */
-    HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
-    if( !communication_window_handle ){
-      DebugOutputStatic( " communication_window_handle is 0 " );
-      break;
-    }
-    /*The request of IME Composition font setting dose not need to be a synchronous method.
-      So use PostMessage() here. */
-    if( PostMessageW( communication_window_handle , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT ,
-                      reinterpret_cast<WPARAM>(hWnd) ,lParam ) ){
-    }else{
-      DebugOutputStatic( "SendMessage WM_W32_IMEADV_REQUEST_COMPOSITION_FONT failed" );
-    }
-  }while( false );
+
+  if( !( lParam & GCS_RESULTSTR ) ){ /* 確定じゃなければ */
+    do{ /* The request of IME Composition font setting */
+      HWND communication_window_handle = reinterpret_cast<HWND>( GetProp( hWnd , "W32_IMM32ADV_COMWIN" ));
+      if( !communication_window_handle ){
+        DebugOutputStatic( " communication_window_handle is 0 " );
+        break;
+      }
+      /*The request of IME Composition font setting dose not need to be a synchronous method.
+        So use PostMessage() here. */
+      if( PostMessageW( communication_window_handle , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT ,
+                        reinterpret_cast<WPARAM>(hWnd) ,lParam ) ){
+      }else{
+        DebugOutputStatic( "SendMessage WM_W32_IMEADV_REQUEST_COMPOSITION_FONT failed" );
+      }
+    }while( false );
+  }
+  
 
   if( lParam & GCS_RESULTSTR )
     {
