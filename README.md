@@ -26,6 +26,18 @@ IMM32 dynamic module for Emacs on Windows
 
  あとは、追加のサンプルに、lisp-w32-imeadv.el があるのでどうにかする。
 
+```
+(when (equal system-type 'windows-nt)
+  ;; Emacs のバグに対応させるダイナミックモジュール
+  (when (and (locate-library "w32-imm32-on-start-enabler" )
+             (load "w32-imm32-on-start-enabler") )
+    (w32-imm32-on-start-enabler-inject))
+  ;; w32-imeadv の有効化
+  (when (and (locate-library "w32-imeadv")
+             (locate-library "lisp-w32-imeadv"))
+    (load "lisp-w32-imeadv")))
+```
+
 ## カスタマイズ
 ![カスタマイズ](image/w32-imeadv-customize.png "カスタマイズ")
 
