@@ -269,7 +269,6 @@ w32_imeadv_wm_ime_composition( HWND hWnd , WPARAM wParam , LPARAM lParam )
       HIMC hImc = ImmGetContext( hWnd );
       if( hImc )
         {
-
           const LONG byte_size = ImmGetCompositionStringW( hImc , GCS_RESULTSTR , NULL , 0 );
           if( IMM_ERROR_NODATA == byte_size ){
           }else if( IMM_ERROR_GENERAL == byte_size ){
@@ -290,12 +289,12 @@ w32_imeadv_wm_ime_composition( HWND hWnd , WPARAM wParam , LPARAM lParam )
               assert( static_cast<size_t>(copydata_bytes) < (character_length * sizeof( wchar_t ) ));
               
               if( byte_size == copydata_bytes ){
-                wchar_t* lpStr = ( wchar_t *)himestr;
+                wchar_t* lpStr = static_cast< wchar_t * >(himestr);
                 size_t const loop_end = (((size_t)((ULONG)byte_size) )/sizeof( wchar_t ));
                 for( size_t i = 0 ; i < loop_end ; ++i ){
                   /* considering UTF-16 surrogate pair */
                   if( L'\0' == lpStr[i] ) break;
-                  uint32_t utf32_code = 0; /* UTF32 */
+                  uint32_t utf32_code = 0u; /* UTF32 */
                   if ((lpStr[i] & 0xFC00) == 0xD800         /* This is hight surrogate */
                       && (lpStr[i + 1] & 0xFC00) == 0xDC00) /* This is low surrogate */
                     { /* (lpStr[i]) and ( lpStr[i+1] ) make surrogate pair. */
@@ -308,8 +307,10 @@ w32_imeadv_wm_ime_composition( HWND hWnd , WPARAM wParam , LPARAM lParam )
                       utf32_code = lpStr[i];
                     }
                   /* TODO validate utf-32 codepoint */
-                  if( utf32_code )
-                    SendMessageW( hWnd , WM_UNICHAR , (WPARAM) utf32_code , 0 );
+                  assert( !utf32_code );
+                  if( utf32_code ){
+                    PostMessageW( hWnd , WM_UNICHAR , (WPARAM) utf32_code , 0 );
+                  }
                 } /* end of cracking IME Result string and queueing WM_UNICHARs. */
               }
               if( ! HeapFree( GetProcessHeap() , 0 , himestr ) ){
