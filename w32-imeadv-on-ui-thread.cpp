@@ -56,6 +56,9 @@ static LRESULT
 w32_imeadv_notify_reconversion_string( HWND hWnd , WPARAM wParam , LPARAM lParam );
 static LRESULT
 w32_imeadv_ui_perform_reconversion( HWND hWnd, WPARAM wParam , LPARAM lParam );
+static LRESULT
+w32_imeadv_wm_emacs_track_caret_hook( HWND hWnd , WPARAM wParam , LPARAM lParam );
+
 
 template<typename CharT,typename Traits >
 std::basic_ostream<CharT,Traits>&
@@ -215,6 +218,7 @@ w32_imeadv_wm_ime_startcomposition_emacs26( HWND hWnd , WPARAM wParam , LPARAM l
   if( ignore_wm_ime_start_composition ){
     return result;
   }
+  
   ignore_wm_ime_start_composition = 1;
 
   /* 
@@ -237,9 +241,16 @@ w32_imeadv_wm_ime_startcomposition_emacs27( HWND hWnd , WPARAM wParam , LPARAM l
   /* 
      26.2 以降はのEmacs は、DefWindowProc を呼び出すように変更されたので、 DefSubclassProc() を呼び出すのみでよくなった
   */
-  const LRESULT result = ::DefSubclassProc( hWnd , WM_IME_STARTCOMPOSITION , wParam , lParam );
-  ignore_wm_ime_start_composition = 1;
-  return result;
+  if( false ){
+    const LRESULT result = ::DefSubclassProc( hWnd , WM_IME_STARTCOMPOSITION , wParam , lParam );
+    ignore_wm_ime_start_composition = 1;
+    return result;
+  }else{
+
+    /* WM_IME_STARTCOMPOSITION は自前で処理するので、emacs をバイパスする */
+    ignore_wm_ime_start_composition = 1;
+    return DefWindowProc( hWnd, WM_IME_STARTCOMPOSITION , wParam , lParam );
+  }
 }
 
 static LRESULT
@@ -783,6 +794,57 @@ w32_imeadv_ui_perform_reconversion( HWND hWnd, WPARAM wParam , LPARAM lParam )
   return 1;
 }
 
+static LRESULT
+w32_imeadv_wm_emacs_track_caret_hook( HWND hWnd , WPARAM wParam , LPARAM lParam )
+{
+  assert( 0 == wParam );
+  assert( 0 == lParam );
+  LRESULT const result = ::DefSubclassProc(hWnd, WM_EMACS_TRACK_CARET ,wParam ,lParam );
+  POINT caret_position = {0};
+  POINT previous_point = {0};
+
+  if( !::GetCaretPos( &caret_position ) ){
+    return result;
+  }
+  
+  static_assert( sizeof( POINT ) <= sizeof( HANDLE ), "");
+
+  {
+    HANDLE handle = GetProp( hWnd , TEXT( "w32-imeadv-caret-position" ) );
+    if( handle ){
+      memcpy_s( &previous_point , sizeof(previous_point) , &handle , sizeof(previous_point) );
+    }
+  }
+
+  /* 
+  {
+    std::stringstream ss{};
+    ss << "caret{x: " << caret_position.x << ", y: " << caret_position.y <<"}, "
+       << "prev{x: " << previous_point.x << ", y: " << previous_point.y << "}";
+    OutputDebugString( ss.str().c_str() );
+  }
+  */
+  
+  if( caret_position.x != previous_point.x ||
+      caret_position.y != previous_point.y )
+    {
+      RECT rect = {0};
+      VERIFY( GetClientRect( hWnd , &rect ) );
+      COMPOSITIONFORM form = { CFS_RECT , caret_position , rect };
+      HIMC hImc = ImmGetContext ( hWnd );
+      if( hImc ){
+        ImmSetCompositionWindow( hImc , &form );
+        VERIFY( ImmReleaseContext ( hWnd , hImc ) );
+      }
+    }
+  {
+    HANDLE handle = 0;
+    memcpy_s( &handle , sizeof(caret_position) , &caret_position , sizeof(caret_position) );
+    SetProp( hWnd , TEXT( "w32-imeadv-caret-position" ), handle );
+  }
+  return result;
+}
+
 LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM lParam ,
                                   UINT_PTR uIdSubclass, DWORD_PTR dwRefData ){
   UNREFERENCED_PARAMETER( dwRefData );
@@ -936,7 +998,8 @@ LRESULT (CALLBACK subclass_proc)( HWND hWnd , UINT uMsg , WPARAM wParam , LPARAM
     
   case WM_W32_IMEADV_NOTIFY_DOCUMENTFEED_STRING:
     return 1;
-
+  case WM_EMACS_TRACK_CARET:
+    return w32_imeadv_wm_emacs_track_caret_hook( hWnd, wParam , lParam );
   default: 
     break;
   }
