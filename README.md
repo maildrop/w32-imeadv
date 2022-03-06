@@ -1,3 +1,16 @@
+# 2022-03-04 現在
+
+29.0.50 開発版での現象 lisp-w32-imeadv.el の中で
+```
+(setq-default mode-line-format (cons '(:eval (w32-imeadv-status-line-show)) mode-line-format))
+```
+でモードラインの変更を行うと、
+```
+bidi.c:2924: Emacs fatal error: assertion failed: bidi_it->prev_for_neutral.type != UNKNOWN_BT
+```
+のアサーションで Emacsが落ちるので無効に変更してあります。
+
+
 # w32-imeadv (experimental implementation : 実験的実装)
 
 IMM32 dynamic module for Emacs on Windows

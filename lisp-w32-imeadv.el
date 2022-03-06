@@ -316,7 +316,11 @@ current-input-method describe-current-input-method-function deactivate-current-i
 (when (and (eq system-type 'windows-nt)   ; Windows NT 上で
            window-system                  ; Window システムがあって
            (locate-library "w32-imeadv")) ; w32-imeadvが存在していれば、
-  (setq-default mode-line-format (cons '(:eval (w32-imeadv-status-line-show)) mode-line-format))
+
+  ;; emacs の 2022-03-04 のコミット
+  ;; bidi.c: L.2924 Emacs fatal error: assertion failed: bidi_it->prev_for_neutral.type != UNKNOWN_BT
+  ;; のアサートで落ちるようになったので、一時的に無効に変更
+  ;;(setq-default mode-line-format (cons '(:eval (w32-imeadv-status-line-show)) mode-line-format))
 
   ;; IME が on になったときに呼ばれるフック関数
   (add-hook 'w32-imeadv-ime-on-hook

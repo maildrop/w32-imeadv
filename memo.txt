@@ -53,3 +53,46 @@ MsgWaitForMultipleObjectsEx で、MWMO_INPUTAVAILABLE フラグを使う方法
 ;; この問題を解決するために、一旦 read-from-string , car を使ってから、eval で評価する。
 
 (eval (car (read-from-string (format "(defvar %s %S %S )" "my-symbol" t "description"))))
+
+==========================================================================================================
+PostMessage() WM_IME_STARTCOMPOSITION 連打問題
+
+当該のコミットはこれ
+
+git show c902b9205ba37aa2db7b9ee855fdca2a13e8076a
+
+git show c902b9205ba
+commit c902b9205ba37aa2db7b9ee855fdca2a13e8076a
+Author: Jason Rumney <jasonr@gnu.org>
+Date:   Wed Jul 22 16:03:39 2009 +0000
+
+    * w32fns.c (w32_wnd_proc) [WM_IME_STARTCOMPOSITION]: Position
+    IME window at cursor (Bug#2570).
+    (w32_wnd_proc) [WM_IME_CHAR]: Release context when finished.
+    (globals_of_w32fns): Dynamically load functions required above.
+    
+    * w32term.c (w32_draw_window_cursor): Send message to reposition
+    any IME window.
+
+これで言及されているバグレポートはこれ。
+
+https://debbugs.gnu.org/cgi/bugreport.cgi?bug=2569
+https://debbugs.gnu.org/cgi/bugreport.cgi?bug=2570
+
+要するにカーソルの位置が変動したとき（主にインクリメンタルサーチ時）に、IMM Candidate Window を追従させて欲しいという意図なんだけど、
+IMM32 は、 defWindowProc の先で、WM_IME_STARTCOMPOTIONを処理しているので（ DefWindowProc が呼ばれないときには Composition Window が表示されないのがその証左である。）WM_IME_STARTCOMPOSITIONをアプリケーションが発行することは意図されていないと思った方が安全。
+
+さて、キャレットの位置は、WM_EMACS_TRACK_CARET でシステムキャレットに対応させていて、
+これは、w32term.c の L6158 で PostMessage( hwnd, WM_EMACS_TRACK_CARET ,0 ,0 );
+の呼び出しで決まる。
+本来の意図としては、システムキャレットの位置に Composition Window を移動させたいわけなので、
+WM_IME_STARTCOMPOTIONの発行を行うより、 WM_EMACS_TRACK_CARET で Composition Window の位置を調整する方が、理にかなっていると思う。
+
+そもそも、w32_system_caret_x, w32_system_caret_y の二つは、 メモリバリア張ってないので、動作は未定義 
+大体うまく動いているように見えるのは Windowning API が同期ポイントだからっていう話なんだけど、死ねば良いのに。
+
+よって
+ WM_IME_STARTCOMPOSITIONを Emacs 本体に渡さないようにする。
+WM_EMACS_TRACK_CARET をフックして、emacs本体の処理後に、 Composition Window の位置を調整する方がよい
+と結論づけた。
+

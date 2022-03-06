@@ -7,6 +7,11 @@
    author: TOGURO Mikito mit@shalab.net
 */
 
+/* from w32term */
+#define WM_EMACS_START                 (WM_USER + 1)
+#define WM_EMACS_TRACK_CARET           (WM_EMACS_START + 16)
+
+
 /* Windows window proerty Key (value is lisp communication window handle ) */
 #define W32_IMM32ADV_COMWIN  "W32_IMM32ADV_COMWIN"
 
