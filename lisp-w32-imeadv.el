@@ -259,8 +259,8 @@ current-input-method describe-current-input-method-function deactivate-current-i
          (set-default sym val)
          (force-mode-line-update t) ))
 
-(defcustom w32-imeadv-ime-status-line-indicate-close "[　]"
-  "ステータスラインに表示するIMEのon/off表示の off の状態 デフォルトは [　]"
+(defcustom w32-imeadv-ime-status-line-indicate-close "-　-"
+  "ステータスラインに表示するIMEのon/off表示の off の状態 デフォルトは -　-"
   :type 'string
   :group 'mule
   :group 'i18n
@@ -273,8 +273,8 @@ current-input-method describe-current-input-method-function deactivate-current-i
          (force-mode-line-update t)))
 
 
-(defcustom w32-imeadv-ime-status-line-indicate-open "[あ]"
-  "ステータスラインに表示するIMEのon/off表示の on の状態 デフォルトは [あ]"
+(defcustom w32-imeadv-ime-status-line-indicate-open "-あ-"
+  "ステータスラインに表示するIMEのon/off表示の on の状態 デフォルトは -あ-"
   :type 'string
   :group 'mule
   :group 'i18n
@@ -309,7 +309,7 @@ current-input-method describe-current-input-method-function deactivate-current-i
   "Get a string to be displayed on the mode-line."
   (if w32-imeadv-ime-status-line-indicate-openstatus-enable
       (with-current-buffer (current-buffer)
-        (format "%s" w32-imeadv-status-line ))
+        (format " %s" w32-imeadv-status-line ))
     ""))
 
 ;; IMEが有効になっているときに、カーソルのカラーを変える機能
@@ -319,8 +319,11 @@ current-input-method describe-current-input-method-function deactivate-current-i
 
   ;; emacs の 2022-03-04 のコミット
   ;; bidi.c: L.2924 Emacs fatal error: assertion failed: bidi_it->prev_for_neutral.type != UNKNOWN_BT
-  ;; のアサートで落ちるようになったので、一時的に無効に変更
-  ;;(setq-default mode-line-format (cons '(:eval (w32-imeadv-status-line-show)) mode-line-format))
+  ;; のアサートで落ちるようになった
+  ;; 当該の部分のコードを読むと ブラケット文字が来たときそれの直前の文字は描画方向が決まっているという前提条件があって、
+  ;; これによると先頭文字がブラケットだとアサートに引っかかるという問題がある。従って w32-imeadv-ime-status-line-indicate-openstatus-{close,open} の
+  ;; 初期値を [　] から -　- に変更してブラッケットを使わないようにした。
+  (setq-default mode-line-format (cons '(:eval (w32-imeadv-status-line-show)) mode-line-format))
 
   ;; IME が on になったときに呼ばれるフック関数
   (add-hook 'w32-imeadv-ime-on-hook
