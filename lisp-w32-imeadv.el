@@ -103,7 +103,12 @@ w32-imeadv--notify-composition-font が nil を返すと、UIスレッドの待�
               (if (and (boundp 'w32-imeadv-ime-composition-font-attributes)
                        (not (null w32-imeadv-ime-composition-font-attributes )))
                   w32-imeadv-ime-composition-font-attributes
-                (font-face-attributes (face-font (or (get-char-property (point) 'face) 'default )
+                ;; get-cahr-property で返される値は、 list の場合がある。 例えば nxml-mode の場合
+                (font-face-attributes (face-font (or (let ((property (get-char-property (point) 'face)))
+                                                       (if (listp property)
+                                                           (car property)
+                                                         property ))
+                                                     'default)
                                                  nil
                                                  (or w32-imeadv-ime-composition-font-investigate-char ?あ)))))) ; ?あ or (char-before)
         (run-hooks 'w32-imeadv-composition-font-hook) ; フォントの調整をする機会をユーザーに与える
