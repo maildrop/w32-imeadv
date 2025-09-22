@@ -230,7 +230,11 @@ w32_imeadv_wm_ime_startcomposition_emacs26( HWND hWnd , WPARAM wParam , LPARAM l
      しかしながら、問題点は、(emacs 26.1 までは) ウィンドウプロシージャがDefWindowProc を呼び出さないために
      IMEのover-the-spot 変換が動作しないという事であった。
      ここでは、 DefSubclassProc を呼び出した上に、DefWindowProc で動作を変更するというのが最も重要な仕事である。 */
-  return ::DefWindowProc( hWnd , WM_IME_STARTCOMPOSITION , wParam , lParam );
+  if( IsWindowUnicode( hWnd ) ){
+    return ::DefWindowProcW( hWnd , WM_IME_STARTCOMPOSITION , wParam , lParam );
+  }else{
+    return ::DefWindowProcA( hWnd , WM_IME_STARTCOMPOSITION , wParam , lParam );
+  }
 }
 
 /*  emacs 27 では、WM_IME_STARTCOMPOSITION で DefWindowProc が呼び出されるように変更された。
@@ -249,7 +253,12 @@ w32_imeadv_wm_ime_startcomposition_emacs27( HWND hWnd , WPARAM wParam , LPARAM l
 
     /* WM_IME_STARTCOMPOSITION は自前で処理するので、emacs をバイパスする */
     ignore_wm_ime_start_composition = 1;
-    return DefWindowProc( hWnd, WM_IME_STARTCOMPOSITION , wParam , lParam );
+
+    if( IsWindowUnicode( hWnd ) ){
+      return DefWindowProcW( hWnd, WM_IME_STARTCOMPOSITION , wParam , lParam );
+    }else{
+      return DefWindowProcA( hWnd, WM_IME_STARTCOMPOSITION , wParam , lParam );
+    }
   }
 }
 
@@ -264,6 +273,7 @@ w32_imeadv_wm_ime_composition( HWND hWnd , WPARAM wParam , LPARAM lParam )
         DebugOutputStatic( " communication_window_handle is 0 " );
         break;
       }
+
       /*The request of IME Composition font setting dose not need to be a synchronous method.
         So use PostMessage() here. */
       if( PostMessageW( communication_window_handle , WM_W32_IMEADV_REQUEST_COMPOSITION_FONT ,
@@ -273,7 +283,6 @@ w32_imeadv_wm_ime_composition( HWND hWnd , WPARAM wParam , LPARAM lParam )
       }
     }while( false );
   }
-  
 
   if( lParam & GCS_RESULTSTR )
     {
@@ -340,6 +349,7 @@ static LRESULT
 w32_imeadv_wm_ime_endcomposition( HWND hWnd , WPARAM wParam , LPARAM lParam )
 {
   ignore_wm_ime_start_composition = 0;
+
   return DefSubclassProc( hWnd , WM_IME_ENDCOMPOSITION , wParam , lParam );
 }
 
@@ -622,16 +632,16 @@ w32_imeadv_notify_reconversion_string( HWND hWnd , WPARAM wParam , LPARAM lParam
     // これは今Lisp スレッドが SendMessage で送ってきてるから、lParam をコピーして自分に PostMessageして第二段階へ移行する。
     using imeadv::NotifyReconversionString;
     const NotifyReconversionString *nrs = reinterpret_cast<NotifyReconversionString*>( lParam );
-    // lParam の指し示す先はスタックなので、即座にコピーしてリターンする。
+    // lParam の指し示す先はスタックなので、即座にコピー
     std::unique_ptr<NotifyReconversionString> ptr{ new (std::nothrow) NotifyReconversionString{} };
     if( ptr ){
-      ptr->pos = nrs->pos;
-      ptr->begin = nrs->begin;
-      ptr->end = nrs->end;
+      ptr->pos            = nrs->pos;
+      ptr->begin          = nrs->begin;
+      ptr->end            = nrs->end;
       ptr->first_half_num = nrs->first_half_num;
       ptr->later_half_num = nrs->later_half_num;
-      ptr->first_half = nrs->first_half;
-      ptr->later_half = nrs->later_half;
+      ptr->first_half     = nrs->first_half;
+      ptr->later_half     = nrs->later_half;
       if( (result = PostMessage( hWnd, WM_w32_IMEADV_UI_PERFORM_RECONVERSION ,
                                  0 , reinterpret_cast<LPARAM>(ptr.get()) ) )){
         ptr.release();
